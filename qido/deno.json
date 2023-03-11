@@ -1,0 +1,11 @@
+{
+  "fmt": {
+    "files": {
+      "include": ["src/"],
+      "exclude": ["src/testdata/"]
+    },
+    "options": {
+      "lineWidth": 100
+    }
+  }
+}

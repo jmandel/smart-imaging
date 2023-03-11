@@ -1,61 +1,11 @@
-import { Application, Router } from "https://deno.land/x/oak@v12.1.0/mod.ts";
+import { Application, jose, Router } from "./deps.ts";
 
-import * as jose from "https://deno.land/x/jose@v4.13.1/index.ts";
+import { AppState, FhirResponse, Identifier, Patient, QidoResponse, TAGS } from "./types.ts";
 
-const app = new Application<{
-  authorizedForPatient: Patient;
-}>();
+const app = new Application<AppState>();
 
 const defaultFhirClinicalServer = `https://launch.smarthealthit.org/v/r4/fhir`;
 const fhirClinicalServer = defaultFhirClinicalServer;
-
-const qidoTags = {
-  MODALITY: "00080061",
-  STUDY_UID: "0020000D",
-} as const;
-
-interface Patient {
-  id: string;
-  identifier: { type: { text: string }; system: string; value: string }[];
-  name: { given: string[]; family: string; text: string }[];
-}
-
-type QidoResponse = {
-  "00080061": {
-    Value: [string];
-  };
-  "0020000D": {
-    Value: [string];
-  };
-}[];
-
-interface Coding {
-  system?: string;
-  code: string;
-  display?: string;
-}
-
-interface FhirResponse {
-  resourceType: "Bundle";
-  entry: {
-    resource: {
-      resourceType: "ImagingStudy";
-      identifier: {
-        system: "urn:dicom:uid";
-        value: string;
-      }[];
-      contained: ({
-        resourceType: "Endpoint";
-        id: string;
-        address: string;
-      } & Record<string, unknown>)[];
-      id: string;
-      modality: Coding[];
-      status: "available";
-      endpoint: { reference: string };
-    };
-  }[];
-}
 
 const ephemeralKey = new Uint8Array(32);
 crypto.getRandomValues(ephemeralKey);
@@ -74,9 +24,8 @@ const dicomWebConfig = {
   baseUrl: `http://localhost:8042/dicom-web`,
   headers: { authorization: `Basic ${btoa(`orthanc:orthanc`)}` },
   lookupStudies: async (patient: Patient): Promise<FhirResponse> => {
-    const mrnIdentifier = patient.identifier.filter(
-      (i: { type: { text: string } }) =>
-        i?.type?.text?.match("Medical Record Number")
+    const mrnIdentifier = patient.identifier.filter((i: Identifier) =>
+      i?.type?.text?.match("Medical Record Number")
     );
     const mrn = mrnIdentifier[0].value;
     console.log("MRN", mrn);
@@ -91,8 +40,8 @@ const dicomWebConfig = {
       resourceType: "Bundle",
       entry: await Promise.all(
         studies.map(async (q) => {
-          const uid = q[qidoTags.STUDY_UID].Value[0];
-          const modality = q[qidoTags.MODALITY].Value;
+          const uid = q[TAGS.STUDY_UID].Value[0];
+          const modality = q[TAGS.MODALITY].Value;
           return {
             resource: {
               resourceType: "ImagingStudy",
@@ -104,7 +53,7 @@ const dicomWebConfig = {
                   id: "e",
                   address: `${baseUrl}/wado/${await signStudyUid(
                     uid,
-                    patient.id
+                    patient.id,
                   )}/studies/${uid}`,
                 },
               ],
@@ -118,7 +67,7 @@ const dicomWebConfig = {
               })),
             },
           };
-        })
+        }),
       ),
     };
   },
@@ -127,9 +76,9 @@ const dicomWebConfig = {
 const defaultPort = 8000;
 const port = parseInt(
   (Deno.permissions.querySync({ name: "env", variable: "PORT" }).state ===
-    "granted" &&
+      "granted" &&
     Deno.env.get("PORT")) ||
-    defaultPort.toString()
+    defaultPort.toString(),
 );
 
 const baseUrl = `http://localhost:${port}`;
@@ -139,14 +88,14 @@ type DicomQuery = { type: "qido"; params: { PatientId: string } };
 type LookupPatient = (pid: string) => Promise<Patient>;
 
 const lookupPatientSandbox: LookupPatient = async (
-  patient: string
+  patient: string,
 ): Promise<Patient> => {
   if (!patient?.startsWith("Patient/")) {
     patient = `Patient/${patient}`;
   }
 
   const patientDetails = await fetch(`${fhirClinicalServer}/${patient}`).then(
-    (r) => r.json()
+    (r) => r.json(),
   );
 
   return patientDetails;
@@ -180,31 +129,54 @@ const wadoRouter = new Router().get("/studies/:uid", async (ctx) => {
     `${dicomWebConfig.baseUrl}/studies/${ctx.params.uid}`,
     {
       headers: dicomWebConfig.headers,
-    }
+    },
   );
   ["content-type", "content-length"].map((h) => {
-    if (proxied.headers.get(h)){
-        ctx.response.headers.append(h, proxied.headers.get(h));
+    if (proxied.headers.get(h)) {
+      ctx.response.headers.append(h, proxied.headers.get(h)!);
     }
   });
   ctx.response.body = proxied.body;
 });
 
-// deno-lint-ignore require-await
-const introspect = async (_authzToken: string) => ({
-  active: true,
-  scope: "patient/ImagingStudy.rs",
-  patient: "Patient/87a339d0-8cae-418e-89c7-8651e6aab3c6",
-});
+import { resolve } from "https://deno.land/std@0.179.0/path/mod.ts";
+import { Introspection } from "./introspection.ts";
+const tenantConfig = new Map<string, unknown>();
+for (const f of Deno.readDirSync("config")) {
+  if (f.name.match(/\.json$/)) {
+    tenantConfig.set(
+      f.name.replace(/\.json$/, ""),
+      JSON.parse(Deno.readTextFileSync(resolve("config", f.name))),
+    );
+  }
+}
 
-app.use(async (ctx, next) => {
-  console.log("authz because any req");
-  const accessToken = ctx.request.headers.get("authorization")!;
-  const introspectionResponse = await introspect(accessToken);
-  const patient = await lookupPatientSandbox(introspectionResponse.patient);
-  ctx.state.authorizedForPatient = patient;
-  await next();
-});
+const multiTenantRouter = new Router<AppState>();
+multiTenantRouter.all(
+  "/:dyn(dyn)?/:tenant/(fhir|wado)/(.*)",
+  async (ctx, next) => {
+    console.log("multitenant", ctx.params, ctx.request.url.pathname);
+    const tenantKey = ctx.params.tenant;
+    let tenant;
+    if (ctx.params.dyn) {
+      tenant = JSON.parse(
+        new TextDecoder().decode(jose.base64url.decode(tenantKey)),
+      );
+    } else {
+      tenant = tenantConfig.get(tenantKey);
+    }
+    console.log("Tenant", tenant);
+    const authzForTenant = Introspection.create(tenant.authorization);
+    await authzForTenant.assignAuthorization(ctx);
+    console.log("Authzd", ctx.state);
+
+    //   const accessToken = ctx.request.headers.get("authorization")!;
+    //   const introspectionResponse = await introspect(accessToken);
+    //   const patient = await lookupPatientSandbox(introspectionResponse.patient);
+    //   ctx.state.authorizedForPatient = patient;
+    await next();
+  },
+);
 
 app.use(async (ctx, next) => {
   try {
@@ -216,33 +188,30 @@ app.use(async (ctx, next) => {
   }
 });
 
-app.use(new Router().use("/fhir", fhirRouter.routes()).routes());
-
 const wadoSubRouter = new Router<typeof app.state>()
-  .all(
-    "/wado/:studyPatientBinding/studies/:uid/:suffix*",
-    async (ctx, next) => {
-      const token = await jose.compactVerify(
-        ctx.params.studyPatientBinding,
-        ephemeralKey
-      );
-      const { uid, patient }: { uid: string; patient: string } = JSON.parse(
-        new TextDecoder().decode(token.payload)
-      );
-      if (patient !== ctx.state.authorizedForPatient.id) {
-        throw `Patient mismatch: ${patient} vs ${ctx.state.authorizedForPatient.id}`;
-      }
-      if (uid !== ctx.params.uid) {
-        throw `Study uid mismatch: ${uid} vs ${ctx.params.uid}`;
-      }
-
-      console.log("SPB", ctx.params.studyPatientBinding, ctx.state);
-      await next();
+  .all("/:studyPatientBinding/studies/:uid/:suffix*", async (ctx, next) => {
+    const token = await jose.compactVerify(
+      ctx.params.studyPatientBinding,
+      ephemeralKey,
+    );
+    const { uid, patient }: { uid: string; patient: string } = JSON.parse(
+      new TextDecoder().decode(token.payload),
+    );
+    if (patient !== ctx.state.authorizedForPatient.id) {
+      throw `Patient mismatch: ${patient} vs ${ctx.state.authorizedForPatient.id}`;
     }
-  )
-  .use("/wado/:studyPatientBinding", wadoRouter.routes());
+    if (uid !== ctx.params.uid) {
+      throw `Study uid mismatch: ${uid} vs ${ctx.params.uid}`;
+    }
 
-app.use(wadoSubRouter.routes());
+    console.log("SPB", ctx.params.studyPatientBinding, ctx.state);
+    await next();
+  })
+  .use("/:studyPatientBinding", wadoRouter.routes());
+
+multiTenantRouter.use("/:dyn(dyn)?/:tenant/fhir", fhirRouter.routes());
+multiTenantRouter.use("/:dyn(dyn)?/:tenant/wado", wadoSubRouter.routes());
+app.use(multiTenantRouter.routes());
 
 console.log("START", port);
 await app.listen({ port });

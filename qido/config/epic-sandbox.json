@@ -1,0 +1,14 @@
+{
+  "id": "epic-sandbox",
+  "introspection": {
+    "type": "smart-on-fhir-with-epic-bugfixes",
+    "client": {
+      "client_id": "123",
+      "jwk": {}
+    }
+  },
+  "images": {
+    "strategy": "hardcoded-samples",
+    "selection": ["general"]
+  }
+}
