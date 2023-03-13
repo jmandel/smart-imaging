@@ -1,5 +1,5 @@
 import { readableStreamFromIterable } from "https://deno.land/std@0.179.0/streams/readable_stream_from_iterable.ts";
-import { Router } from "../deps.ts";
+import { Router } from "./deps.ts";
 
 export const mimeRouter = new Router()
 .get("/mime", (ctx) => {

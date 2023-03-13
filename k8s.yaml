@@ -11,13 +11,13 @@ metadata:
 data:
   config.json: |
       {
-          "DicomWeb" : {
+         "DicomWeb" : {
           "Enable" : true,             // Whether DICOMweb support is enabled
           "Root" : "/dicom-web/",      // Root URI of the DICOMweb API (for QIDO-RS, STOW-RS and WADO-RS)
           "StudiesMetadata" : "Full",  // How study-level metadata is retrieved (since release 1.1, cf. section below)
           "SeriesMetadata" : "Full"   // How series-level metadata is retrieved (since release 1.1, cf. section below)
         },
-        "Name" : "Orthanc for SMART Demo",
+        "Name" : "Orthanc for Argonaut Imaging Demo",
         "StorageDirectory" : "/var/lib/orthanc/db",
         "Plugins" : [ 
           "/usr/share/orthanc/plugins", "/usr/local/share/orthanc/plugins"
@@ -37,6 +37,9 @@ data:
         "UnknownSopClassAccepted" : false,
         "DicomScpTimeout" : 30,
         "RemoteAccessAllowed" : true,
+        "RegisteredUsers" : {
+           "argonaut" : "argonaut"
+        },
         "SslEnabled" : false,
         "SslCertificate" : "certificate.pem",
         "SslMinimumProtocolVersion" : 4,
@@ -96,7 +99,6 @@ data:
         "ZipLoaderThreads": 0
       }
 ---
-
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -118,6 +120,27 @@ spec:
           name: orthanc-config
         name: orthanc-config-volume
       containers:
+      - name: proxy
+        image: imaging-proxy:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8000
+          name: proxy
+        args:
+        - /bin/bash
+        - -c
+        - >
+          cd examples;
+          ./wait-for-server.sh;
+          ./load-examples.sh;
+          cd ..;
+          deno run --allow-all src/index.ts;
+      - name: launcher
+        image: smart-launcher-v2:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 80
+          name: launcher-web
       - name: orthanc
         image: jodogne/orthanc-plugins:1.11.0
         volumeMounts:
@@ -137,6 +160,14 @@ spec:
   selector:
     app: reference
   ports:
+  - name: proxy
+    protocol: TCP
+    port: 8000
+    targetPort: proxy
+  - name: launcher
+    protocol: TCP
+    port: 80
+    targetPort: launcher-web
   - name: orthanc-web
     protocol: TCP
     port: 8042
@@ -157,11 +188,24 @@ spec:
   rules:
     - http:
         paths:
-          - path: /orthanc(/|$)(.*)
+          - path: "/orthanc(/|$)?(.*)"
             pathType: Prefix
             backend:
               service:
                 name: reference
                 port:
                   number: 8042
-
+          - path: "/img(/|$)?(.*)"
+            pathType: Prefix
+            backend:
+              service:
+                name: reference
+                port:
+                  number: 8000
+          - path: "/($)?(.*)"
+            pathType: Prefix
+            backend:
+              service:
+                name: reference
+                port:
+                  number: 80

@@ -1,15 +1,21 @@
 import { jose, oak } from "./deps.ts";
 import { AppState, IntrospectionResponse, Patient } from "./types.ts";
 
-type IntrospectionConfig = {
-  fhirBaseUrl: string;
-  scope: string;
-  client: {
-    client_id: string;
-    jwk: { alg: "ES384" | "RS384"; kid: string };
-    jwkPrivate: unknown;
-  };
-} & ({ type: "smart-on-fhir" } | { type: "smart-on-fhir-with-epic-bugfixes" });
+type IntrospectionConfig =
+  & {
+    fhirBaseUrl: string;
+    scope: string;
+    client: {
+      client_id: string;
+      jwk: { alg: "ES384" | "RS384"; kid: string };
+      jwkPrivate: unknown;
+    };
+  }
+  & (
+    | { type: "smart-on-fhir" }
+    | { type: "smart-on-fhir-with-epic-bugfixes" }
+    | { type: "fake-authorization"; hardcodedPatient: Patient }
+  );
 
 interface SmartConfiguration {
   token_endpoint: string;
@@ -21,6 +27,8 @@ export class Introspection {
   static create(config: IntrospectionConfig): Introspection {
     if (config.type === "smart-on-fhir-with-epic-bugfixes") {
       return new IntrospectionEpic(config);
+    } else if (config.type === "fake-authorization") {
+      return new IntrospectionFake(config);
     } else {
       return new Introspection(config);
     }
@@ -109,14 +117,13 @@ export class Introspection {
     if (!introspected.patient) {
       return null;
     }
-    const patientUrl = this.config.fhirBaseUrl + "/Patient/" +
-      introspected.patient;
-    const patientResponse = await fetch(patientUrl, {
-      method: "POST",
-      headers: {
-        accept: "application/fhir+json",
-        authorization: `Bearer ${accessToken}`,
-      },
+    const patientUrl = this.config.fhirBaseUrl + "/Patient/" + introspected.patient;
+      const patientResponse = await fetch(patientUrl, {
+        method: "GET",
+        headers: {
+          accept: "application/fhir+json",
+          authorization: `Bearer ${accessToken}`,
+        },
     });
 
     return (await patientResponse.json()) as Patient;
@@ -136,6 +143,7 @@ export class Introspection {
   async getAuthorizationContext(tokenToIntrospect: string) {
     const accessToken = (await this.getAccessToken()).access_token;
     const introspected = await this.introspect(tokenToIntrospect, accessToken);
+    console.log("Introspected", introspected)
     const patient = await this.resolvePatient(introspected, accessToken);
     console.log("P", patient);
     return { patient, introspected };
@@ -174,5 +182,27 @@ export class IntrospectionEpic extends Introspection {
 
   constructor(config: IntrospectionConfig) {
     super(config);
+  }
+}
+
+export class IntrospectionFake extends Introspection {
+  async introspectionEndpoint() {
+    const tokenEndpoint = await this.tokenEndpoint();
+    return tokenEndpoint.replace(/\/token$/, "/introspect");
+  }
+
+  constructor(config: IntrospectionConfig) {
+    super(config);
+  }
+  // deno-lint-ignore require-await
+  async assignAuthorization(ctx: oak.Context<AppState>) {
+    if (this.config.type === "fake-authorization") {
+      ctx.state.authorizedForPatient = this.config.hardcodedPatient;
+      ctx.state.introspected = {
+        active: true,
+        patient: this.config.hardcodedPatient.id,
+        scope: "patient/ImagingStudy.rs",
+      };
+    }
   }
 }
