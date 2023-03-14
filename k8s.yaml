@@ -136,7 +136,7 @@ spec:
           cd ..;
           deno run --allow-all src/index.ts;
       - name: launcher
-        image: smart-launcher-v2:latest
+        image: smartonfhir/smart-launcher-2:latest
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 80
