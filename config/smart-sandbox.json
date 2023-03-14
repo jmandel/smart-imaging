@@ -26,12 +26,13 @@
     }
   },
   "images": {
-    "strategy": "dicom-web",
-    "endpoint": "http://localhost:8042",
+    "type": "dicom-web",
+    "lookup":  "studies-by-mrn",
+    "endpoint": "http://orthanc:8042",
     "authentication": {
       "type": "http-basic",
-      "username": "orthanc",
-      "password": "orthanc"
+      "username": "argonaut",
+      "password": "argonaut"
     }
   }
 }

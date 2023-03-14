@@ -1,6 +1,9 @@
+import type {DicomProvider} from "./dicomweb.ts"
+
 export interface AppState {
   authorizedForPatient: Patient;
   introspected: IntrospectionResponse;
+  imagesProvider: DicomProvider
 }
 
 export interface IntrospectionResponse {

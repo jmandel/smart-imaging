@@ -1,5 +1,4 @@
 import { Router } from "./deps.ts";
-import { dicomWebConfig } from "./dicomweb.ts";
 import { AppState } from "./types.ts";
 
 export const fhirRouter = new Router<AppState>();
@@ -20,7 +19,7 @@ fhirRouter.get("/ImagingStudy", async (ctx) => {
     throw "Need a Patient";
   }
   const p = ctx.state.authorizedForPatient;
-  const studies = await dicomWebConfig.lookupStudies(p);
+  const studies = await ctx.state.imagesProvider.lookupStudies(p);
   ctx.response.headers.set("content-type", "application/fhir+json");
   ctx.response.body = JSON.stringify(studies, null, 2);
 });

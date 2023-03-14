@@ -1,6 +1,5 @@
 import { jose, Router } from "./deps.ts";
-import { baseUrl } from "./config.ts";
-import { Patient,FhirResponse,Identifier,QidoResponse,TAGS, AppState } from "./types.ts";
+import { AppState, FhirResponse, Identifier, Patient, QidoResponse, TAGS } from "./types.ts";
 
 const ephemeralKey = new Uint8Array(32);
 crypto.getRandomValues(ephemeralKey);
@@ -15,18 +14,61 @@ const signStudyUid = async (uid: string, patient: string) => {
     .sign(ephemeralKey);
 };
 
-export const dicomWebConfig = {
-  baseUrl: `http://localhost:8042/dicom-web`,
-  headers: { authorization: `Basic ${btoa(`orthanc:orthanc`)}` },
-  lookupStudies: async (patient: Patient): Promise<FhirResponse> => {
-    const mrnIdentifier = patient.identifier.filter((i: Identifier) =>
-      i?.type?.text?.match("Medical Record Number")
-    );
-    const mrn = mrnIdentifier[0].value;
-    console.log("MRN", mrn);
-    const qido = new URL(`${dicomWebConfig.baseUrl}/studies?PatientId=${mrn}`);
+type DicomProviderConfig = {
+  type: "dicom-web";
+  lookup: "studies-by-mrn" | "all-studies-on-server";
+  endpoint: string;
+  authentication: {
+    type: "http-basic";
+    username: string;
+    password: string;
+  };
+};
+
+interface DicomWebResult {
+  headers: Record<string, string>;
+  body: ReadableStream<Uint8Array>;
+}
+
+export class DicomProvider {
+  constructor(public config: DicomProviderConfig, public wadoBase: string) {}
+  authHeader() {
+    return `Basic ${
+      btoa(`${this.config.authentication.username}:${this.config.authentication.password}`)
+    }`;
+  }
+  async evaluateDicomWeb(path: string): Promise<DicomWebResult> {
+    const proxied = await fetch(`${this.config.endpoint}/studies/${path}`, {
+      headers: {
+        authorization: this.authHeader(),
+      },
+    });
+    const headers: Record<string, string> = {};
+    ["content-type", "content-length"].map((h) => {
+      if (proxied.headers.get(h)) {
+        headers[h] = proxied.headers.get(h)!;
+      }
+    });
+
+    return { headers, body: proxied.body! };
+  }
+
+  async lookupStudies(patient: Patient): Promise<FhirResponse> {
+    let query = ``;
+    if (this.config.lookup === "studies-by-mrn") {
+      const mrnIdentifier = patient.identifier.filter((i: Identifier) =>
+        i?.type?.text?.match("Medical Record Number")
+      );
+      const mrn = mrnIdentifier[0].value;
+      console.log("MRN", mrn);
+      query = `PatientID=${mrn}`;
+    }
+    const qido = new URL(`${this.config.endpoint}/studies?${query}`);
+    console.log("Q", qido)
     const studies: QidoResponse = await fetch(qido, {
-      headers: dicomWebConfig.headers,
+      headers: {
+        authorization: this.authHeader(),
+      },
     }).then((q) => q.json());
     console.log("s", studies);
     return {
@@ -44,16 +86,11 @@ export const dicomWebConfig = {
                 {
                   resourceType: "Endpoint",
                   id: "e",
-                  address: `${baseUrl}/wado/${await signStudyUid(
-                    uid,
-                    patient.id,
-                  )}/studies/${uid}`,
+                  address: `${this.wadoBase}/${await signStudyUid(uid, patient.id)}/studies/${uid}`,
                 },
               ],
               endpoint: { reference: "#e" },
-              identifier: [
-                { system: "urn:dicom:uid", value: `urn:oid:${uid}` },
-              ],
+              identifier: [{ system: "urn:dicom:uid", value: `urn:oid:${uid}` }],
               modality: modality.map((code) => ({
                 system: `http://dicom.nema.org/resources/ontology/DCM`,
                 code,
@@ -63,30 +100,20 @@ export const dicomWebConfig = {
         }),
       ),
     };
-  },
-};
+  }
+}
 
-const wadoInnerRouter = new Router().get("/studies/:uid", async (ctx) => {
-  const proxied = await fetch(
-    `${dicomWebConfig.baseUrl}/studies/${ctx.params.uid}`,
-    {
-      headers: dicomWebConfig.headers,
-    },
-  );
-  ["content-type", "content-length"].map((h) => {
-    if (proxied.headers.get(h)) {
-      ctx.response.headers.append(h, proxied.headers.get(h)!);
-    }
+const wadoInnerRouter = new Router<AppState>().get("/studies/:uid(.*)", async (ctx) => {
+  const { headers, body } = await ctx.state.imagesProvider.evaluateDicomWeb(`${ctx.params.uid}`);
+  Object.entries(headers).forEach(([k, v]) => {
+    ctx.response.headers.set(k, v);
   });
-  ctx.response.body = proxied.body;
+  ctx.response.body = body;
 });
 
 export const wadoRouter = new Router<AppState>()
   .all("/:studyPatientBinding/studies/:uid/(.*)", async (ctx, next) => {
-    const token = await jose.compactVerify(
-      ctx.params.studyPatientBinding,
-      ephemeralKey,
-    );
+    const token = await jose.compactVerify(ctx.params.studyPatientBinding, ephemeralKey);
     const { uid, patient }: { uid: string; patient: string } = JSON.parse(
       new TextDecoder().decode(token.payload),
     );
@@ -100,5 +127,4 @@ export const wadoRouter = new Router<AppState>()
     console.log("SPB", ctx.params.studyPatientBinding, ctx.state);
     await next();
   })
-
   .use("/:studyPatientBinding", wadoInnerRouter.routes());

@@ -1,20 +1,27 @@
 import { jose, oak } from "./deps.ts";
 import { AppState, IntrospectionResponse, Patient } from "./types.ts";
 
+interface IntrospectionConfigBase {
+  fhirBaseUrl: string;
+  scope: string;
+  client: {
+    client_id: string;
+    jwk: { alg: "ES384" | "RS384"; kid: string };
+    jwkPrivate: unknown;
+  };
+}
+
+type IntrospectionConfigFake = IntrospectionConfigBase & {
+  type: "fake-authorization";
+  hardcodedPatient: Patient;
+};
+
 type IntrospectionConfig =
-  & {
-    fhirBaseUrl: string;
-    scope: string;
-    client: {
-      client_id: string;
-      jwk: { alg: "ES384" | "RS384"; kid: string };
-      jwkPrivate: unknown;
-    };
-  }
+  & IntrospectionConfigBase
   & (
     | { type: "smart-on-fhir" }
     | { type: "smart-on-fhir-with-epic-bugfixes" }
-    | { type: "fake-authorization"; hardcodedPatient: Patient }
+    | IntrospectionConfigFake
   );
 
 interface SmartConfiguration {
@@ -83,10 +90,7 @@ export class Introspection {
       body: new URLSearchParams([
         ["scope", this.config.scope],
         ["grant_type", "client_credentials"],
-        [
-          "client_assertion_type",
-          "urn:ietf:params:oauth:client-assertion-type:jwt-bearer",
-        ],
+        ["client_assertion_type", "urn:ietf:params:oauth:client-assertion-type:jwt-bearer"],
         ["client_assertion", await this.generateClientAssertion()],
       ]).toString(),
     });
@@ -96,17 +100,14 @@ export class Introspection {
   }
 
   async introspect(tokenToIntrospect: string, accessToken: string) {
-    const introspectionResponse = await fetch(
-      await this.introspectionEndpoint(),
-      {
-        method: "POST",
-        headers: {
-          "content-type": "application/x-www-form-urlencoded",
-          authorization: `Bearer ${accessToken}`,
-        },
-        body: new URLSearchParams([["token", tokenToIntrospect]]).toString(),
+    const introspectionResponse = await fetch(await this.introspectionEndpoint(), {
+      method: "POST",
+      headers: {
+        "content-type": "application/x-www-form-urlencoded",
+        authorization: `Bearer ${accessToken}`,
       },
-    );
+      body: new URLSearchParams([["token", tokenToIntrospect]]).toString(),
+    });
     return (await introspectionResponse.json()) as IntrospectionResponse;
   }
 
@@ -118,12 +119,12 @@ export class Introspection {
       return null;
     }
     const patientUrl = this.config.fhirBaseUrl + "/Patient/" + introspected.patient;
-      const patientResponse = await fetch(patientUrl, {
-        method: "GET",
-        headers: {
-          accept: "application/fhir+json",
-          authorization: `Bearer ${accessToken}`,
-        },
+    const patientResponse = await fetch(patientUrl, {
+      method: "GET",
+      headers: {
+        accept: "application/fhir+json",
+        authorization: `Bearer ${accessToken}`,
+      },
     });
 
     return (await patientResponse.json()) as Patient;
@@ -143,22 +144,18 @@ export class Introspection {
   async getAuthorizationContext(tokenToIntrospect: string) {
     const accessToken = (await this.getAccessToken()).access_token;
     const introspected = await this.introspect(tokenToIntrospect, accessToken);
-    console.log("Introspected", introspected)
+    console.log("Introspected", introspected);
     const patient = await this.resolvePatient(introspected, accessToken);
     console.log("P", patient);
     return { patient, introspected };
   }
 
   async assignAuthorization(ctx: oak.Context<AppState>) {
-    const tokenToIntrospect = ctx.request.headers
-      .get("authorization")
-      ?.split(/bearer /i)?.[1];
+    const tokenToIntrospect = ctx.request.headers.get("authorization")?.split(/bearer /i)?.[1];
     if (!tokenToIntrospect) {
       throw "Cannot authorize without an access token";
     }
-    const { patient, introspected } = await this.getAuthorizationContext(
-      tokenToIntrospect,
-    );
+    const { patient, introspected } = await this.getAuthorizationContext(tokenToIntrospect);
     console.log(patient, introspected);
     if (!introspected.active) {
       throw "Must have an active access token";
@@ -169,8 +166,7 @@ export class Introspection {
     if (!patient?.id) {
       throw "Must be authorized against a patient";
     }
-    ctx.state.authorizedForPatient = patient;
-    ctx.state.introspected = introspected;
+    return { patient, introspected };
   }
 }
 
@@ -186,23 +182,19 @@ export class IntrospectionEpic extends Introspection {
 }
 
 export class IntrospectionFake extends Introspection {
-  async introspectionEndpoint() {
-    const tokenEndpoint = await this.tokenEndpoint();
-    return tokenEndpoint.replace(/\/token$/, "/introspect");
+  constructor(public fakeConfig: IntrospectionConfigFake) {
+    super(fakeConfig);
   }
 
-  constructor(config: IntrospectionConfig) {
-    super(config);
-  }
   // deno-lint-ignore require-await
-  async assignAuthorization(ctx: oak.Context<AppState>) {
-    if (this.config.type === "fake-authorization") {
-      ctx.state.authorizedForPatient = this.config.hardcodedPatient;
-      ctx.state.introspected = {
+  async assignAuthorization(_ctx: oak.Context<AppState>) {
+    return {
+      patient: this.fakeConfig.hardcodedPatient,
+      introspected: {
         active: true,
-        patient: this.config.hardcodedPatient.id,
+        patient: this.fakeConfig.hardcodedPatient.id,
         scope: "patient/ImagingStudy.rs",
-      };
-    }
+      },
+    };
   }
 }

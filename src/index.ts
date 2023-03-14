@@ -4,11 +4,10 @@ import { AppState } from "./types.ts";
 
 const app = new Application<AppState>();
 
-
 import { resolve } from "https://deno.land/std@0.179.0/path/mod.ts";
 import { Introspection } from "./introspection.ts";
-import { wadoRouter } from "./dicomweb.ts";
-import { port } from "./config.ts";
+import { DicomProvider, wadoRouter } from "./dicomweb.ts";
+import { baseUrl, port } from "./config.ts";
 import { fhirRouter } from "./fhir.ts";
 
 const tenantConfig = new Map<string, unknown>();
@@ -36,8 +35,18 @@ multiTenantRouter.all(
       tenant = tenantConfig.get(tenantKey);
     }
     console.log("Tenant", tenant);
+
     const authzForTenant = Introspection.create(tenant.authorization);
-    await authzForTenant.assignAuthorization(ctx);
+    const { patient, introspected } = await authzForTenant.assignAuthorization(ctx);
+    console.log("Got", patient, introspected);
+
+    ctx.state.authorizedForPatient = patient;
+    ctx.state.introspected = introspected;
+    ctx.state.imagesProvider = new DicomProvider(
+      tenant.images,
+      baseUrl + (ctx.params.dyn ? `/dyn/${ctx.params.dyn}` : ``) + `/${ctx.params.tenant}/wado`,
+    );
+
     console.log("Authzd", ctx.state);
     await next();
   },
@@ -52,7 +61,6 @@ app.use(async (ctx, next) => {
     ctx.response.body = e.toString();
   }
 });
-
 
 multiTenantRouter.use("/:dyn(dyn)?/:tenant/fhir", fhirRouter.routes());
 multiTenantRouter.use("/:dyn(dyn)?/:tenant/wado", wadoRouter.routes());
