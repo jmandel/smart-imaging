@@ -17,7 +17,7 @@ do
     --user argonaut \
     --password argonaut \
     -O /dev/null \
-    http://localhost:8042/instances \
+    http://orthanc:8042/instances \
     --post-file="$i"
 done
 

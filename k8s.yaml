@@ -115,10 +115,6 @@ spec:
       labels:
         app: reference
     spec:
-      volumes:
-      - configMap:
-          name: orthanc-config
-        name: orthanc-config-volume
       containers:
       - name: proxy
         image: imaging-proxy:latest
@@ -141,15 +137,6 @@ spec:
         ports:
         - containerPort: 80
           name: launcher-web
-      - name: orthanc
-        image: jodogne/orthanc-plugins:1.11.0
-        volumeMounts:
-        - name: orthanc-config-volume
-          subPath: config.json
-          mountPath: /etc/orthanc/orthanc.json
-        ports:
-        - containerPort: 8042
-          name: orthanc-web
 ---
 apiVersion: v1
 kind: Service
@@ -168,6 +155,47 @@ spec:
     protocol: TCP
     port: 80
     targetPort: launcher-web
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: orthanc
+  namespace: smart-imaging-access
+spec:
+  selector:
+    matchLabels:
+      app: orthanc
+  replicas: 1
+  template:
+    metadata:
+      namespace: smart-imaging-access
+      labels:
+        app: orthanc
+    spec:
+      volumes:
+      - configMap:
+          name: orthanc-config
+        name: orthanc-config-volume
+      containers:
+      - name: orthanc
+        image: jodogne/orthanc-plugins:1.11.0
+        volumeMounts:
+        - name: orthanc-config-volume
+          subPath: config.json
+          mountPath: /etc/orthanc/orthanc.json
+        ports:
+        - containerPort: 8042
+          name: orthanc-web
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: orthanc
+  namespace: smart-imaging-access
+spec:
+  selector:
+    app: orthanc
+  ports:
   - name: orthanc-web
     protocol: TCP
     port: 8042
@@ -192,7 +220,7 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: reference
+                name: orthanc
                 port:
                   number: 8042
           - path: "/img(/|$)?(.*)"

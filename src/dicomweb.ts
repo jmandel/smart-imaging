@@ -70,7 +70,7 @@ export class DicomProvider {
         authorization: this.authHeader(),
       },
     }).then((q) => q.json());
-    console.log("s", studies);
+    console.log("Studies", studies);
     return {
       resourceType: "Bundle",
       entry: await Promise.all(

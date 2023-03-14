@@ -1,5 +1,4 @@
 {
-  "id": "epic-sandbox",
   "introspection": {
     "type": "smart-on-fhir-with-epic-bugfixes",
     "client": {
@@ -8,7 +7,13 @@
     }
   },
   "images": {
-    "strategy": "hardcoded-samples",
-    "selection": ["general"]
+    "type": "dicom-web",
+    "lookup":  "all-studies-on-server",
+    "endpoint": "http://orthanc:8042/dicom-web",
+    "authentication": {
+      "type": "http-basic",
+      "username": "argonaut",
+      "password": "argonaut"
+    }
   }
 }

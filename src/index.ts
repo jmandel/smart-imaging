@@ -24,7 +24,6 @@ const multiTenantRouter = new Router<AppState>();
 multiTenantRouter.all(
   "/:dyn(dyn)?/:tenant/(fhir|wado)/(.*)",
   async (ctx, next) => {
-    console.log("multitenant", ctx.params, ctx.request.url.pathname);
     const tenantKey = ctx.params.tenant;
     let tenant;
     if (ctx.params.dyn) {
@@ -34,20 +33,18 @@ multiTenantRouter.all(
     } else {
       tenant = tenantConfig.get(tenantKey);
     }
-    console.log("Tenant", tenant);
-
     const authzForTenant = Introspection.create(tenant.authorization);
     const { patient, introspected } = await authzForTenant.assignAuthorization(ctx);
-    console.log("Got", patient, introspected);
 
     ctx.state.authorizedForPatient = patient;
     ctx.state.introspected = introspected;
+    const forwarded = ctx.request.headers.get("x-forwarded-proto") ? ctx.request.headers.get("x-forwarded-proto") + "://" + ctx.request.headers.get("x-forwarded-host")  : null;
+    const reqBase =  (forwarded ?? ctx.request.url.origin) + ctx.request.url.pathname;
     ctx.state.imagesProvider = new DicomProvider(
       tenant.images,
-      baseUrl + (ctx.params.dyn ? `/dyn/${ctx.params.dyn}` : ``) + `/${ctx.params.tenant}/wado`,
+      reqBase + (ctx.params.dyn ? `/dyn/${ctx.params.dyn}` : ``) + `/${ctx.params.tenant}/wado`,
     );
 
-    console.log("Authzd", ctx.state);
     await next();
   },
 );
