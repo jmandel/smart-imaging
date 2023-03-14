@@ -117,7 +117,7 @@ spec:
     spec:
       containers:
       - name: proxy
-        image: imaging-proxy:latest
+        image: argonautcontainerregistry.azurecr.io/imaging-proxy:latest
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8000
@@ -132,7 +132,7 @@ spec:
           cd ..;
           deno run --allow-all src/index.ts;
       - name: launcher
-        image: smartonfhir/smart-launcher-2:latest
+        image: argonautcontainerregistry.azurecr.io/smartonfhir/smart-launcher-2:latest
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 80
@@ -200,40 +200,3 @@ spec:
     protocol: TCP
     port: 8042
     targetPort: orthanc-web
----
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  namespace: smart-imaging-access
-  name: reference
-  annotations:
-    nginx.ingress.kubernetes.io/proxy-body-size: "600m"
-    nginx.ingress.kubernetes.io/use-regex: "true"
-    nginx.ingress.kubernetes.io/rewrite-target: /$2
-    nginx.ingress.kubernetes.io/configuration-snippet: |
-      rewrite ^(/orthanc)$ /orthanc/ redirect;
-spec:
-  rules:
-    - http:
-        paths:
-          - path: "/orthanc(/|$)?(.*)"
-            pathType: Prefix
-            backend:
-              service:
-                name: orthanc
-                port:
-                  number: 8042
-          - path: "/img(/|$)?(.*)"
-            pathType: Prefix
-            backend:
-              service:
-                name: reference
-                port:
-                  number: 8000
-          - path: "/($)?(.*)"
-            pathType: Prefix
-            backend:
-              service:
-                name: reference
-                port:
-                  number: 80
