@@ -6,7 +6,6 @@ export async function parseMultipart(response: Response) {
 
   const data = new Uint8Array(await response.arrayBuffer());
   let state = "preamble";
-  let partStart = -1;
   let headerStart = -1;
   let headerEnd = -1;
 
