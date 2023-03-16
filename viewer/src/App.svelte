@@ -92,7 +92,7 @@
 
     const parsed = await parseMultipart(studyMultipart);
     study = parsed.parts.map((p) => p.body);
-    console.log("PArsed", parsed, study);
+    console.log("Parsed all multi parts", parsed, study);
     studyMetadata = parseStudyMetadata();
     seriesList = createSeriesList();
   }

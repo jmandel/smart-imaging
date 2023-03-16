@@ -1,0 +1,38 @@
+name: Deploy UI to GH Pages
+on:
+  push:
+    branches:
+    - main
+    paths:
+    - 'viewer/**'
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build:
+    concurrency: ci-${{ github.ref }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout 🛎️
+        uses: actions/checkout@v2
+      - name: Install and Build 🔧 
+        working-directory: ./viewer
+        run: |
+          npm ci
+          npm run build -- --base=/smart-imaging
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v1
+        with:
+          path: ./viewer/dist
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v1

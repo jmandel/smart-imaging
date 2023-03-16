@@ -1,0 +1,33 @@
+name: Deploy Server to k8s
+on:
+  push:
+    branches:
+    - main
+    paths-ignore:
+    - 'viewer/**'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@master
+    - uses: azure/docker-login@v1
+      with:
+        login-server: ${{ secrets.CONTAINER_REGISTRY }}
+        username: ${{ fromJSON(secrets.AZURE_CREDENTIALS).clientId }}
+        password: ${{ fromJSON(secrets.AZURE_CREDENTIALS).clientSecret }}
+    - uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+    - uses: azure/aks-set-context@v2.0
+      with:
+        cluster-name: ${{ secrets.CLUSTER_NAME }}
+        resource-group: ${{ secrets.RESOURCE_GROUP }}
+    - name: Build and rollout to CI
+      run: |
+        docker build . \
+          -t ${{ secrets.CONTAINER_REGISTRY }}/imaging-proxy:$GITHUB_SHA \
+          -t ${{ secrets.CONTAINER_REGISTRY }}/imaging-proxy:latest
+        docker push ${{ secrets.CONTAINER_REGISTRY }}/imaging-proxy
+        kubectl -n smart-imaging-access patch deployment reference --type JSON --patch '[{"op": "replace", "path": "/spec/template/spec/containers/0/imagePullPolicy", "value": "Always"}]'
+        kubectl -n smart-imaging-access rollout restart deployment/reference
