@@ -81,7 +81,7 @@
 
   async function fetchStudy() {
     const studyMultipart = await fetch(
-      "https://imaging-local.argo.run/orthanc/dicom-web/studies/1.2.276.0.7230010.3.1.2.4094306560.1.1678736912.732222",
+      "https://imaging.argo.run/orthanc/dicom-web/studies/1.2.276.0.7230010.3.1.2.4094306560.1.1678736912.732222",
       {
         headers: {
           accept: `*/*`,
