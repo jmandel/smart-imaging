@@ -24,6 +24,7 @@
     "cornerstone-tools": "^6.0.8",
     "cornerstone-wado-image-loader": "^4.10.0",
     "cornerstone-web-image-loader": "^2.1.1",
-    "dicom-parser": "^1.8.21"
+    "dicom-parser": "^1.8.21",
+    "lodash": "^4.17.21"
   }
 }

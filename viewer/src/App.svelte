@@ -10,54 +10,69 @@
   import { parseMultipart } from "./multipart";
   import * as _ from "lodash";
 
-  cornerstoneWADOImageLoader.external.dicomParser = dicomParser
+  cornerstoneWADOImageLoader.external.dicomParser = dicomParser;
   cornerstoneWADOImageLoader.external.cornerstone = cornerstone;
+
+  // workaround https://github.com/cornerstonejs/cornerstoneWADOImageLoader/issues/403#issuecomment-984543027
+  const config = {
+    maxWebWorkers: navigator.hardwareConcurrency || 1,
+    startWebWorkersOnDemand: true,
+    webWorkerTaskPaths: [
+      new URL("610.bundle.min.worker.js", window.location.href + "/").href,
+      new URL("888.bundle.min.worker.js", window.location.href + "/").href,
+    ],
+    taskConfiguration: {
+      decodeTask: {
+        initializeCodecsOnStartup: false,
+      },
+    },
+  };
+  cornerstoneWADOImageLoader.webWorkerManager.initialize(config);
 
   let study = []; // Your DICOM binary Uint8Arrays
   let allRetrievedInstances: InstanceDetails[] = [];
 
   interface Study {
     patient: {
-      name: string,
-      id: string
-    },
+      name: string;
+      id: string;
+    };
     series: {
-      number: number,
-      name: string,
-      instances: string[]
-    }[]
+      number: string;
+      name: string;
+      instances: string[];
+    }[];
   }
 
-interface InstanceDetails  {
-        imageId: string,
-        patientName: string,
-        patientId: string,
-        instanceDate: string,
-        studyDescription: string,
-        seriesNumber: string,
-        seriesDescription: string,
-        instanceNumber: string,
-      }
+  interface InstanceDetails {
+    imageId: string;
+    patientName: string;
+    patientId: string;
+    instanceDate: string;
+    studyDescription: string;
+    seriesNumber: number;
+    seriesDescription: string;
+    instanceNumber: number;
+  }
+
   let studyLoaded: Study | null;
-  $: {studyLoaded = {
-      patient: {
-        name: allRetrievedInstances[0].patientName,
-        id: allRetrievedInstances[0].patientId,
-      },
-      series: _.chain(allRetrievedInstances)
-        .groupBy(i => i.seriesNumber)
-        .values()
-        .map(seriesArray => ({
-          number: seriesArray[0].seriesNumber,
-          name: seriesArray[0].seriesDescription,
-          instances: seriesArray.map(s => s.imageId)
-        }))
-        .value()
-    };
+  $: studyLoaded = {
+    patient: {
+      name: allRetrievedInstances?.[0]?.patientName,
+      id: allRetrievedInstances?.[0]?.patientId,
+    },
+    series: _.chain(allRetrievedInstances)
+      .groupBy((i) => i.seriesNumber)
+      .values()
+      .map((seriesArray) => ({
+        number: seriesArray[0].seriesNumber,
+        name: seriesArray[0].seriesDescription,
+        instances: seriesArray.map((s) => s.imageId),
+      }))
+      .value(),
+  };
 
-$: console.log("Study", studyLoaded);
-
-
+  $: console.log("Study", studyLoaded);
 
   let seriesList = new Map();
   let selectedSeries = null;
@@ -67,7 +82,7 @@ $: console.log("Study", studyLoaded);
   function parseStudyMetadata() {
     cornerstoneWADOImageLoader.wadouri.fileManager.purge();
 
-    const instances = study.map((dicomData) => {
+    const instances: InstanceDetails[] = study.map((dicomData) => {
       const imageId = cornerstoneWADOImageLoader.wadouri.fileManager.add(new Blob([dicomData]));
       const dataSet = dicomParser.parseDicom(dicomData);
       return {
@@ -77,7 +92,7 @@ $: console.log("Study", studyLoaded);
         instanceDate: dataSet.string("x00080012"),
         studyDescription: dataSet.string("x00081030"),
         seriesNumber: dataSet.intString("x00200011"),
-        seriesDescription: dataSet.string('x0008103e'),
+        seriesDescription: dataSet.string("x0008103e"),
         instanceNumber: dataSet.intString("x00200013"),
       };
     });
@@ -124,7 +139,7 @@ $: console.log("Study", studyLoaded);
       "https://imaging.argo.run/orthanc/dicom-web/studies/1.2.276.0.7230010.3.1.2.4094306560.1.1678736912.732222",
       {
         headers: {
-          accept: `*/*`,
+          accept: `multipart/related; type=application/dicom; transfer-syntax=*`,
           authorization: `Basic ${btoa(`argonaut:argonaut`)}`,
         },
       }
@@ -166,7 +181,7 @@ $: console.log("Study", studyLoaded);
     {#if allRetrievedInstances.length}
       <p>Name: {allRetrievedInstances[0].patientName}</p>
       <p>ID: {allRetrievedInstances[0].patientId.slice(0, 10)}...</p>
-      <p>Date: {allRetrievedInstances[0].instanceDate.slice(0,4)}</p>
+      <p>Date: {allRetrievedInstances[0].instanceDate.slice(0, 4)}</p>
       <p>Study Description: {allRetrievedInstances[0].studyDescription}</p>
     {:else}
       <p>Loading...</p>
@@ -176,7 +191,7 @@ $: console.log("Study", studyLoaded);
   <div class="metadata-selection">
     <h2>Select Series</h2>
     <div class="series-buttons">
-      {#each Array.from(seriesList.keys()).map(k => [k, seriesList.get(k)[0].seriesDescription]) as [seriesNumber, seriesDescription]}
+      {#each Array.from(seriesList.keys()).map( (k) => [k, seriesList.get(k)[0].seriesDescription] ) as [seriesNumber, seriesDescription]}
         <button on:click={() => selectSeries(seriesNumber)}>{seriesDescription}</button>
       {/each}
     </div>
