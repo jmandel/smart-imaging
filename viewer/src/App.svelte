@@ -31,25 +31,29 @@
   }
 
   interface StudyFromFhir {
-    modality: string,
-    endpoint: string
+    modality: string;
+    endpoint: string;
   }
   let availableStudies: StudyFromFhir[] = [];
   async function getImagesForPatient() {
-    const r = await smart.request(smartClientConfig.imagingServer + `/ImagingStudy?patient=${smart.state.tokenResponse.patient}`)
-    const images = r.entry.map(e => e.resource).map(i => ({
-      modality: i.modality[0].code,
-      endpoint: i.contained?.[0]?.address
-    }))
+    const r = await smart.request(
+      smartClientConfig.imagingServer + `/ImagingStudy?patient=${smart.state.tokenResponse.patient}`
+    );
+    const images = r.entry
+      .map((e) => e.resource)
+      .map((i) => ({
+        modality: i.modality[0].code,
+        endpoint: i.contained?.[0]?.address,
+      }));
     availableStudies = images;
-    console.log(r)
-    console.log(images)
+    console.log(r);
+    console.log(images);
   }
 
-  $:{ 
-      if(smart){
-        getImagesForPatient()
-      }
+  $: {
+    if (smart) {
+      getImagesForPatient();
+    }
   }
 
   cornerstoneWADOImageLoader.external.dicomParser = dicomParser;
@@ -177,14 +181,12 @@
   }
 
   async function fetchStudy(url) {
-    const studyMultipart = await fetch(url,
-      {
-        headers: {
-          accept: `multipart/related; type=application/dicom; transfer-syntax=*`,
-          authorization: smart.getAuthorizationHeader()
-        },
-      }
-    );
+    const studyMultipart = await fetch(url, {
+      headers: {
+        accept: `multipart/related; type=application/dicom; transfer-syntax=*`,
+        authorization: smart.getAuthorizationHeader(),
+      },
+    });
 
     const parsed = await parseMultipart(studyMultipart);
     study = parsed.parts.map((p) => p.body);
@@ -211,31 +213,21 @@
   {#if smart == null}
     <button on:click={authorize}>Connect</button>
   {:else}
-    {#each availableStudies as study} 
-        <button on:click={() => fetchStudy(study.endpoint)}>Fetch {study.modality}</button>
+    {#each availableStudies as study}
+      <button on:click={() => fetchStudy(study.endpoint)}>Fetch {study.modality}</button>
     {/each}
   {/if}
 </div>
-{#if availableStudies?.length > 0}
-<div class="menu-bar">
-</div>
-{/if}
-
 
 <div class="container">
+    {#if allRetrievedInstances.length}
   <div class="metadata-selection">
     <h2>Patient</h2>
-    {#if allRetrievedInstances.length}
       <p>Name: {allRetrievedInstances[0].patientName}</p>
       <p>ID: {allRetrievedInstances[0].patientId.slice(0, 10)}...</p>
       <p>Date: {allRetrievedInstances[0].instanceDate.slice(0, 4)}</p>
       <p>Study Description: {allRetrievedInstances[0].studyDescription}</p>
-    {:else}
-      <p>Loading...</p>
-    {/if}
   </div>
-
-  {#if studyLoaded.series.length > 0}
     <div class="metadata-selection">
       <h2>Series</h2>
       <div class="series-buttons">
@@ -280,5 +272,21 @@
     background-color: var(--background-color);
     color: var(--text-color);
     margin: 0;
+  }
+
+  :global(#app) {
+    display: flex;
+    flex-flow: column;
+    height: 100%;
+  }
+
+  .menu-bar {
+    background-color: #3a6f8f;
+  }
+  .container {
+    margin-left: 1em;
+    flex-grow: 10;
+    display: flex;
+    flex-direction: column;
   }
 </style>
