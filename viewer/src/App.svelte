@@ -1,7 +1,6 @@
 <script lang="ts">
   import { onMount, afterUpdate } from "svelte";
   import * as dicomParser from "dicom-parser";
-  import Thumbnail from "./Thumbnail.svelte";
   import Viewer from "./Viewer.svelte";
 
   import * as cornerstone from "cornerstone-core";
@@ -9,6 +8,49 @@
   import { get } from "svelte/store";
   import { parseMultipart } from "./multipart";
   import * as _ from "lodash";
+
+  import * as fhirclient from "fhirclient";
+  import type Client from "fhirclient/lib/Client";
+  const smartClientConfig = {
+    iss: "https://imaging-local.argo.run/v/r4/sim/WzMsIjg3YTMzOWQwLThjYWUtNDE4ZS04OWM3LTg2NTFlNmFhYjNjNiIsIiIsIkFVVE8iLDAsMCwwLCIiLCIiLCIiLCIiLCIiLCIiLCIiLDAsMV0/fhir",
+    imagingServer: `https://imaging-local.argo.run/img/open/fhir`,
+    clientId: "test",
+    scope: "launch/patient patient/*.cruds",
+  };
+
+  let smart: Client;
+  try {
+    fhirclient.oauth2.ready().then((c) => {
+      smart = c;
+      window.s = c;
+    });
+  } catch {}
+
+  async function authorize() {
+    await fhirclient.oauth2.authorize(smartClientConfig);
+  }
+
+  interface StudyFromFhir {
+    modality: string,
+    endpoint: string
+  }
+  let availableStudies: StudyFromFhir[] = [];
+  async function getImagesForPatient() {
+    const r = await smart.request(smartClientConfig.imagingServer + `/ImagingStudy?patient=${smart.state.tokenResponse.patient}`)
+    const images = r.entry.map(e => e.resource).map(i => ({
+      modality: i.modality[0].code,
+      endpoint: i.contained?.[0]?.address
+    }))
+    availableStudies = images;
+    console.log(r)
+    console.log(images)
+  }
+
+  $:{ 
+      if(smart){
+        getImagesForPatient()
+      }
+  }
 
   cornerstoneWADOImageLoader.external.dicomParser = dicomParser;
   cornerstoneWADOImageLoader.external.cornerstone = cornerstone;
@@ -134,13 +176,12 @@
     }
   }
 
-  async function fetchStudy() {
-    const studyMultipart = await fetch(
-      "https://imaging.argo.run/orthanc/dicom-web/studies/1.2.276.0.7230010.3.1.2.4094306560.1.1678736912.732222",
+  async function fetchStudy(url) {
+    const studyMultipart = await fetch(url,
       {
         headers: {
           accept: `multipart/related; type=application/dicom; transfer-syntax=*`,
-          authorization: `Basic ${btoa(`argonaut:argonaut`)}`,
+          authorization: smart.getAuthorizationHeader()
         },
       }
     );
@@ -154,8 +195,6 @@
 
   onMount(() => {
     document.addEventListener("keydown", navigateInstances);
-    fetchStudy();
-
     return () => {
       document.removeEventListener("keydown", navigateInstances);
     };
@@ -169,11 +208,19 @@
 </script>
 
 <div class="menu-bar">
-  <div class="menu-item">File</div>
-  <div class="menu-item">Edit</div>
-  <div class="menu-item">View</div>
-  <div class="menu-item">Help</div>
+  {#if smart == null}
+    <button on:click={authorize}>Connect</button>
+  {:else}
+    {#each availableStudies as study} 
+        <button on:click={() => fetchStudy(study.endpoint)}>Fetch {study.modality}</button>
+    {/each}
+  {/if}
 </div>
+{#if availableStudies?.length > 0}
+<div class="menu-bar">
+</div>
+{/if}
+
 
 <div class="container">
   <div class="metadata-selection">
@@ -188,27 +235,26 @@
     {/if}
   </div>
 
-  <div class="metadata-selection">
-    <h2>Select Series</h2>
-    <div class="series-buttons">
-      {#each Array.from(seriesList.keys()).map( (k) => [k, seriesList.get(k)[0].seriesDescription] ) as [seriesNumber, seriesDescription]}
-        <button on:click={() => selectSeries(seriesNumber)}>{seriesDescription}</button>
-      {/each}
+  {#if studyLoaded.series.length > 0}
+    <div class="metadata-selection">
+      <h2>Series</h2>
+      <div class="series-buttons">
+        {#each Array.from(seriesList.keys()).map( (k) => [k, seriesList.get(k)[0].seriesDescription] ) as [seriesNumber, seriesDescription]}
+          <button on:click={() => selectSeries(seriesNumber)}>{seriesDescription}</button>
+        {/each}
+      </div>
     </div>
-  </div>
+  {/if}
 
   <div class="images">
     {#if selectedSeries}
       <h2>Instances</h2>
       <div class="instances">
         {#each seriesList.get(selectedSeries) as instance, index (instance.imageId)}
-          <div
-            style="border: {selectedInstance === instance.imageId ? '2px solid blue' : '2px solid transparent'};"
-            on:click={() => selectInstance(index)}
-          >
-            <Thumbnail imageId={instance.imageId} />
+          <!-- svelte-ignore a11y-click-events-have-key-events -->
+          <button on:click={() => selectInstance(index)}>
             <p>Instance: {instance.instanceNumber}</p>
-          </div>
+          </button>
         {/each}
       </div>
     {/if}
@@ -220,7 +266,7 @@
 {/if}
 
 <style>
-  :root {
+  :global(:root) {
     --background-color: #1e1e1e;
     --text-color: #e0e0e0;
     --primary-color: #4e9cce;
@@ -234,94 +280,5 @@
     background-color: var(--background-color);
     color: var(--text-color);
     margin: 0;
-  }
-
-  :global(#app) {
-    flex-wrap: wrap;
-    display: flex;
-    width: 100%;
-    height: 100%;
-    place-self: flex-start;
-  }
-
-  h2 {
-    font-weight: bold;
-    margin-bottom: 0.5rem;
-  }
-
-  p {
-    margin-top: 0;
-    margin-bottom: 0.5rem;
-  }
-
-  button {
-    background-color: var(--primary-color);
-    border: none;
-    color: var(--text-color);
-    padding: 10px 20px;
-    text-align: center;
-    text-decoration: none;
-    display: inline-block;
-    font-size: 14px;
-    margin: 2px 2px;
-    cursor: pointer;
-    border-radius: 4px;
-    font-family: var(--font-family);
-    transition: background-color 0.3s;
-  }
-
-  button:hover {
-    background-color: var(--secondary-color);
-  }
-
-  .container {
-    display: flex;
-  }
-
-  .metadata-selection {
-    flex: 1;
-    align-items: first baseline;
-  }
-
-  .images {
-    flex: 1;
-  }
-
-  .series-buttons {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    margin-bottom: 20px;
-  }
-
-  .instances {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-    gap: 10px;
-  }
-
-  .menu-bar {
-    display: flex;
-    align-items: center;
-    background-color: var(--secondary-color);
-    padding: 0.5rem 1rem;
-    flex: 0 0 100%;
-  }
-
-  .menu-item {
-    margin-left: 1rem;
-    cursor: pointer;
-  }
-
-  .menu-item:first-child {
-    margin-left: 0;
-  }
-
-  .viewer-controls {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    gap: 10px;
-    margin-bottom: 20px;
   }
 </style>

@@ -119,6 +119,12 @@ spec:
       - name: proxy
         image: argonautcontainerregistry.azurecr.io/imaging-proxy:latest
         imagePullPolicy: IfNotPresent
+        env:
+        - name: BASE_URL
+          valueFrom:
+            configMapKeyRef:
+              name: proxy-config
+              key: BASE_URL
         ports:
         - containerPort: 8000
           name: proxy

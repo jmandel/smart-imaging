@@ -35,3 +35,11 @@ spec:
                 name: reference
                 port:
                   number: 80
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: proxy-config
+  namespace: smart-imaging-access
+data:
+  BASE_URL: https://imaging-local.argo.run/img

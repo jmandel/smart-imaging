@@ -5,23 +5,26 @@
 
   export let imageId = "";
 
+
+  async function displayImageId(id){
+    let image = await cornerstone.loadImage(id);
+    cornerstone.displayImage(canvas, image);
+  }
+
   $: {
+    displayImageId(imageId)
     console.log("IID", imageId, "in thumb");
-    cornerstone.loadImage(imageId).then((image) => {
-      console.log("Loaded");
-      cornerstone.displayImage(canvas, image);
-    });
   }
 
   let canvas;
 
   onMount(() => {
     cornerstone.enable(canvas);
-
     return () => {
       cornerstone.disable(canvas);
     };
   });
+
 </script>
 
 <div class="viewer" bind:this={canvas}  ></div>
