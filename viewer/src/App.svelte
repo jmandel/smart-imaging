@@ -1,10 +1,4 @@
 <script lang="ts">
-  import svelteLogo from "./assets/svelte.svg";
-  import viteLogo from "/vite.svg";
-  import Counter from "./lib/Counter.svelte";
-
-  import { parseMultipart } from "./multipart";
-
   import { onMount, afterUpdate } from "svelte";
   import * as dicomParser from "dicom-parser";
   import Thumbnail from "./Thumbnail.svelte";
@@ -13,13 +7,58 @@
   import * as cornerstone from "cornerstone-core";
   import * as cornerstoneWADOImageLoader from "cornerstone-wado-image-loader";
   import { get } from "svelte/store";
+  import { parseMultipart } from "./multipart";
+  import * as _ from "lodash";
 
   cornerstoneWADOImageLoader.external.dicomParser = dicomParser
   cornerstoneWADOImageLoader.external.cornerstone = cornerstone;
-  // cornerstone.registerImageLoader("urn", loadDicomImage);
 
   let study = []; // Your DICOM binary Uint8Arrays
-  let studyMetadata = [];
+  let allRetrievedInstances: InstanceDetails[] = [];
+
+  interface Study {
+    patient: {
+      name: string,
+      id: string
+    },
+    series: {
+      number: number,
+      name: string,
+      instances: string[]
+    }[]
+  }
+
+interface InstanceDetails  {
+        imageId: string,
+        patientName: string,
+        patientId: string,
+        instanceDate: string,
+        studyDescription: string,
+        seriesNumber: string,
+        seriesDescription: string,
+        instanceNumber: string,
+      }
+  let studyLoaded: Study | null;
+  $: {studyLoaded = {
+      patient: {
+        name: allRetrievedInstances[0].patientName,
+        id: allRetrievedInstances[0].patientId,
+      },
+      series: _.chain(allRetrievedInstances)
+        .groupBy(i => i.seriesNumber)
+        .values()
+        .map(seriesArray => ({
+          number: seriesArray[0].seriesNumber,
+          name: seriesArray[0].seriesDescription,
+          instances: seriesArray.map(s => s.imageId)
+        }))
+        .value()
+    };
+
+$: console.log("Study", studyLoaded);
+
+
+
   let seriesList = new Map();
   let selectedSeries = null;
   let selectedInstance = null;
@@ -28,10 +67,9 @@
   function parseStudyMetadata() {
     cornerstoneWADOImageLoader.wadouri.fileManager.purge();
 
-    return study.map((dicomData) => {
+    const instances = study.map((dicomData) => {
       const imageId = cornerstoneWADOImageLoader.wadouri.fileManager.add(new Blob([dicomData]));
       const dataSet = dicomParser.parseDicom(dicomData);
-
       return {
         imageId,
         patientName: dataSet.string("x00100010"),
@@ -43,11 +81,13 @@
         instanceNumber: dataSet.intString("x00200013"),
       };
     });
+
+    return instances;
   }
 
   function createSeriesList() {
     const seriesMap = new Map();
-    studyMetadata.forEach((metadata) => {
+    allRetrievedInstances.forEach((metadata) => {
       if (!seriesMap.has(metadata.seriesNumber)) {
         seriesMap.set(metadata.seriesNumber, []);
       }
@@ -93,7 +133,7 @@
     const parsed = await parseMultipart(studyMultipart);
     study = parsed.parts.map((p) => p.body);
     console.log("Parsed all multi parts", parsed, study);
-    studyMetadata = parseStudyMetadata();
+    allRetrievedInstances = parseStudyMetadata();
     seriesList = createSeriesList();
   }
 
@@ -123,11 +163,11 @@
 <div class="container">
   <div class="metadata-selection">
     <h2>Patient</h2>
-    {#if studyMetadata.length}
-      <p>Name: {studyMetadata[0].patientName}</p>
-      <p>ID: {studyMetadata[0].patientId.slice(0, 10)}...</p>
-      <p>Date: {studyMetadata[0].instanceDate.slice(0,4)}</p>
-      <p>Study Description: {studyMetadata[0].studyDescription}</p>
+    {#if allRetrievedInstances.length}
+      <p>Name: {allRetrievedInstances[0].patientName}</p>
+      <p>ID: {allRetrievedInstances[0].patientId.slice(0, 10)}...</p>
+      <p>Date: {allRetrievedInstances[0].instanceDate.slice(0,4)}</p>
+      <p>Study Description: {allRetrievedInstances[0].studyDescription}</p>
     {:else}
       <p>Loading...</p>
     {/if}
