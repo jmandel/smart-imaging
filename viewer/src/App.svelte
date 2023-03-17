@@ -8,12 +8,12 @@
   import { get } from "svelte/store";
   import { parseMultipart } from "./multipart";
   import * as _ from "lodash";
-
   import * as fhirclient from "fhirclient";
   import type Client from "fhirclient/lib/Client";
+
   const smartClientConfig = {
-    iss: "https://imaging-local.argo.run/v/r4/sim/WzMsIjg3YTMzOWQwLThjYWUtNDE4ZS04OWM3LTg2NTFlNmFhYjNjNiIsIiIsIkFVVE8iLDAsMCwwLCIiLCIiLCIiLCIiLCIiLCIiLCIiLDAsMV0/fhir",
-    imagingServer: `https://imaging-local.argo.run/img/open/fhir`,
+    iss: "https://imaging.argo.run/v/r4/sim/WzMsIjg3YTMzOWQwLThjYWUtNDE4ZS04OWM3LTg2NTFlNmFhYjNjNiIsIiIsIkFVVE8iLDAsMCwwLCIiLCIiLCIiLCIiLCIiLCIiLCIiLDAsMV0/fhir",
+    imagingServer: `https://imaging.argo.run/img/open/fhir`,
     clientId: "test",
     scope: "launch/patient patient/*.cruds",
   };
