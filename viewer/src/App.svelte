@@ -34,6 +34,31 @@
     console.log("Images", images, imagingStudies);
   }
 
+  function nextInstance(change?: number, exact?: number) {
+    const instances = studyLoaded.series[selectedSeries].instances;
+    const currentInstanceIndex = instances.indexOf(selectedInstance);
+    const target = exact ?? currentInstanceIndex + change;
+    if (target > 0 && target < instances.length) {
+      selectedInstance = instances[target];
+      instanceRangeSlider = target;
+    }
+  }
+
+  onMount(() => {
+    // Add event listener to window
+    function listen(e: KeyboardEvent) {
+      if (e.key === ">") {
+        nextInstance(1);
+      }
+      if (e.key === "<") {
+        nextInstance(-1);
+      }
+    }
+
+    window.addEventListener("keydown", listen);
+    return () => window.removeEventListener("keydown", listen);
+  });
+
   $: {
     if ($client) {
       fetchPatient($client);
@@ -96,19 +121,23 @@
         id: allRetrievedInstances?.[0]?.patientId,
       },
       series: _.chain(allRetrievedInstances)
+        .sortBy((i) => i.seriesNumber)
         .groupBy((i) => i.seriesNumber)
         .values()
         .map((seriesArray, i) => ({
           number: i,
           name: seriesArray[0].seriesDescription,
-          instances: seriesArray.map((s) => s.imageId),
+          instances: _.chain(seriesArray)
+            .sortBy((s) => s.instanceNumber)
+            .map((s) => s.imageId)
+            .value(),
         }))
         .value(),
     });
 
   $: console.log("Study", studyLoaded);
 
-  let selectedSeries = null;
+  let selectedSeries: number | null = null;
   let selectedInstance = null;
 
   function parseStudyMetadata(study: Uint8Array[]) {
@@ -130,17 +159,22 @@
     return instances;
   }
 
+  let instanceRangeSlider = 0;
+  let instanceRange = [0, 0];
+
   function selectSeries(seriesNumber) {
     selectedSeries = seriesNumber;
     selectedInstance = studyLoaded.series[seriesNumber].instances[0];
+    instanceRange = [0, studyLoaded.series[seriesNumber].instances.length - 1];
+    instanceRangeSlider = 0;
   }
 
   interface StudyToFetch {
-    address: string,
-    uid: string,
-    modality: string
+    address: string;
+    uid: string;
+    modality: string;
   }
-  async function fetchStudy({address, uid}: StudyToFetch) {
+  async function fetchStudy({ address, uid }: StudyToFetch) {
     const studyMultipart = await fetch(`${address}/studies/${uid}`, {
       headers: {
         accept: `multipart/related; type=application/dicom; transfer-syntax=*`,
@@ -208,6 +242,16 @@
   {#if selectedInstance}
     <div class="row">
       <div class="col col-4">
+        {#if instanceRange[1] > 0}
+          <input
+            class="instance-slider"
+            type="range"
+            bind:value={instanceRangeSlider}
+            min={instanceRange[0]}
+            max={instanceRange[1]}
+            on:input={(v) => nextInstance(null, parseInt(v.target.value))}
+          />
+        {/if}
         <Viewer imageId={selectedInstance} />
       </div>
     </div>
@@ -215,5 +259,10 @@
 </div>
 
 <style>
-  .series-buttons button {width: 100%}
+  .series-buttons button {
+    width: 100%;
+  }
+  .instance-slider {
+    width: 100%;
+  }
 </style>

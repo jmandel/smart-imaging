@@ -1,8 +1,8 @@
 <!-- Viewer.svelte -->
 <script>
-  import { onMount, onDestroy } from 'svelte';
-  import * as cornerstone from 'cornerstone-core';
-  import * as cornerstoneTools from 'cornerstone-tools';
+  import { onMount, onDestroy } from "svelte";
+  import * as cornerstone from "cornerstone-core";
+  import * as cornerstoneTools from "cornerstone-tools";
 
   export let imageId;
 
@@ -12,14 +12,13 @@
     if (!viewerElement) {
       return;
     }
-    cornerstone.disable(viewerElement);
-    cornerstone.enable(viewerElement);
     cornerstone.loadImage(imageId).then((image) => {
       cornerstone.displayImage(viewerElement, image);
     });
   }
 
   onMount(() => {
+    cornerstone.enable(viewerElement);
     loadImage(imageId);
   });
 
@@ -27,10 +26,10 @@
     cornerstone.disable(viewerElement);
   });
 
-  $: if (imageId) {
-    loadImage(imageId);
-  }
+  $: loadImage(imageId);
 </script>
+
+<div class="viewer" bind:this={viewerElement} />
 
 <style>
   .viewer {
@@ -39,5 +38,3 @@
     position: relative;
   }
 </style>
-
-<div class="viewer" bind:this={viewerElement}></div>
