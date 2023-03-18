@@ -31,21 +31,23 @@ interface DicomWebResult {
 }
 
 function formatName(name: string): string | undefined {
-  return name ? name.split("^").map(n => n.trim()).filter(n => !!n).join(" ") : undefined;
+  return name ? name.split("^").map((n) => n.trim()).filter((n) => !!n).join(" ") : undefined;
 }
 
-function formatDate(dateString: string, timeString?: string):string | undefined {
+function formatDate(dateString: string, timeString?: string): string | undefined {
   if (!dateString) return undefined;
-  const date = dateString.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3');
+  const date = dateString.replace(/(\d{4})(\d{2})(\d{2})/, "$1-$2-$3");
   if (!timeString) return new Date(date).toISOString();
 
-  const time = timeString.replace(/(\d{2})(\d{2})(\d{2})(\.\d{1,6})?/, '$1:$2:$3$4');
+  const time = timeString.replace(/(\d{2})(\d{2})(\d{2})(\.\d{1,6})?/, "$1:$2:$3$4");
   return new Date(`${date}T${time}`).toISOString();
 }
 
-
-function formatResource(q, patient: Patient, wadoBase: string): any {
-
+async function formatResource(
+  q: QidoResponse[number],
+  patient: Patient,
+  wadoBase: string,
+): Promise<FhirResponse["entry"][number]["resource"]> {
   const uid = q[TAGS.STUDY_UID].Value[0];
   const studyDateTime = formatDate(q[TAGS.STUDY_DATE].Value?.[0], q[TAGS.STUDY_TIME].Value?.[0]);
 
@@ -60,14 +62,14 @@ function formatResource(q, patient: Patient, wadoBase: string): any {
     referrer: {
       display: formatName(q[TAGS.REFERRING_PHYSICIAN_NAME]?.Value?.[0]?.Alphabetic),
     },
-    description: q[TAGS.STUDY_ID]?.Value,
+    description: q[TAGS.STUDY_ID]?.Value?.[0],
     numberOfSeries: q[TAGS.NUMBER_OF_SERIES]?.Value?.[0],
     numberOfInstances: q[TAGS.NUMBER_OF_INSTANCES]?.Value?.[0],
     contained: [
       {
         resourceType: "Endpoint",
         id: "e",
-        address: `${wadoBase}/${signStudyUid(uid, patient.id)}`,
+        address: `${wadoBase}/${await signStudyUid(uid, patient.id)}`,
         connectionType: {
           system: "http://terminology.hl7.org/CodeSystem/endpoint-connection-type",
           code: "dicom-wado-rs",
@@ -86,17 +88,20 @@ function formatResource(q, patient: Patient, wadoBase: string): any {
 export class DicomProvider {
   constructor(public config: DicomProviderConfig, public wadoBase: string) {}
   authHeader() {
-    return `Basic ${btoa(`${this.config.authentication.username}:${this.config.authentication.password}`)}`;
+    return `Basic ${
+      btoa(`${this.config.authentication.username}:${this.config.authentication.password}`)
+    }`;
   }
   async evaluateDicomWeb(path: string, reqHeaders: Headers): Promise<DicomWebResult> {
     const proxied = await fetch(`${this.config.endpoint}/studies/${path}`, {
       headers: {
         authorization: this.authHeader(),
-        accept: reqHeaders.get("accept") || `multipart/related; type=application/dicom; transfer-syntax=*`,
+        accept: reqHeaders.get("accept") ||
+          `multipart/related; type=application/dicom; transfer-syntax=*`,
       },
     });
     const headers: Record<string, string> = {};
-    headers['cache-control'] = 'private, max-age=3600';
+    headers["cache-control"] = "private, max-age=3600";
     ["content-type", "content-length"].map((h) => {
       if (proxied.headers.get(h)) {
         headers[h] = proxied.headers.get(h)!;
@@ -108,7 +113,9 @@ export class DicomProvider {
   async lookupStudies(patient: Patient): Promise<FhirResponse> {
     let query = ``;
     if (this.config.lookup === "studies-by-mrn") {
-      const mrnIdentifier = patient.identifier.filter((i: Identifier) => i?.type?.text?.match("Medical Record Number"));
+      const mrnIdentifier = patient.identifier.filter((i: Identifier) =>
+        i?.type?.text?.match("Medical Record Number")
+      );
       const mrn = mrnIdentifier[0].value;
       console.log("MRN", mrn);
       query = `PatientID=${mrn}`;
@@ -123,13 +130,18 @@ export class DicomProvider {
     console.log("Studies", studies);
     return {
       resourceType: "Bundle",
-      entry: studies.map((q) => ({resource: formatResource(q, patient, this.wadoBase)}))
+      entry: await Promise.all(
+        studies.map(async (q) => ({ resource: await formatResource(q, patient, this.wadoBase) })),
+      ),
     };
   }
 }
 
 const wadoInnerRouter = new Router<AppState>().get("/studies/:uid(.*)", async (ctx) => {
-  const { headers, body } = await ctx.state.imagesProvider.evaluateDicomWeb(`${ctx.params.uid}`, ctx.request.headers);
+  const { headers, body } = await ctx.state.imagesProvider.evaluateDicomWeb(
+    `${ctx.params.uid}`,
+    ctx.request.headers,
+  );
   Object.entries(headers).forEach(([k, v]) => {
     ctx.response.headers.set(k, v);
   });
@@ -139,7 +151,9 @@ const wadoInnerRouter = new Router<AppState>().get("/studies/:uid(.*)", async (c
 export const wadoRouter = new Router<AppState>()
   .all("/:studyPatientBinding/studies/:uid/(.*)?", async (ctx, next) => {
     const token = await jose.compactVerify(ctx.params.studyPatientBinding, ephemeralKey);
-    const { uid, patient }: { uid: string; patient: string } = JSON.parse(new TextDecoder().decode(token.payload));
+    const { uid, patient }: { uid: string; patient: string } = JSON.parse(
+      new TextDecoder().decode(token.payload),
+    );
     if (patient !== ctx.state.authorizedForPatient.id) {
       throw `Patient mismatch: ${patient} vs ${ctx.state.authorizedForPatient.id}`;
     }

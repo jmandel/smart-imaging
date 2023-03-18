@@ -38,12 +38,12 @@ multiTenantRouter.all(
 
     ctx.state.authorizedForPatient = patient;
     ctx.state.introspected = introspected;
-    const reqBase =  baseUrl;
+    const reqBase = baseUrl;
     ctx.state.imagesProvider = new DicomProvider(
       tenant.images,
       reqBase + (ctx.params.dyn ? `/dyn/${ctx.params.dyn}` : ``) + `/${ctx.params.tenant}/wado`,
     );
-    console.log(ctx.state.imagesProvider.wadoBase)
+    console.log(ctx.state.imagesProvider.wadoBase);
     await next();
   },
 );

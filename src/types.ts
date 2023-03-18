@@ -1,9 +1,9 @@
-import type {DicomProvider} from "./dicomweb.ts"
+import type { DicomProvider } from "./dicomweb.ts";
 
 export interface AppState {
   authorizedForPatient: Patient;
   introspected: IntrospectionResponse;
-  imagesProvider: DicomProvider
+  imagesProvider: DicomProvider;
 }
 
 export interface IntrospectionResponse {
@@ -19,32 +19,27 @@ export interface Patient {
 }
 
 export enum TAGS {
-  SPECIFIC_CHARACTER_SET = '00080005',
-  STUDY_DATE = '00080020',
-  STUDY_TIME = '00080030',
-  ACCESSION_NUMBER = '00080050',
-  INSTANCE_AVAILABILITY = '00080056',
-  MODALITIES_IN_STUDY = '00080061',
-  REFERRING_PHYSICIAN_NAME = '00080090',
-  TIMEZONE_OFFSET_FROM_UTC = '00080201',
-  RETRIEVE_URL = '00081190',
-  PATIENT_NAME = '00100010',
-  PATIENT_ID = '00100020',
-  PATIENT_BIRTH_DATE = '00100030',
-  PATIENT_SEX = '00100040',
-  STUDY_UID = '0020000D',
-  STUDY_ID = '00200010',
-  NUMBER_OF_SERIES = '00201206',
-  NUMBER_OF_INSTANCES = '00201208',
+  SPECIFIC_CHARACTER_SET = "00080005",
+  STUDY_DATE = "00080020",
+  STUDY_TIME = "00080030",
+  ACCESSION_NUMBER = "00080050",
+  INSTANCE_AVAILABILITY = "00080056",
+  MODALITIES_IN_STUDY = "00080061",
+  REFERRING_PHYSICIAN_NAME = "00080090",
+  TIMEZONE_OFFSET_FROM_UTC = "00080201",
+  RETRIEVE_URL = "00081190",
+  PATIENT_NAME = "00100010",
+  PATIENT_ID = "00100020",
+  PATIENT_BIRTH_DATE = "00100030",
+  PATIENT_SEX = "00100040",
+  STUDY_UID = "0020000D",
+  STUDY_ID = "00200010",
+  NUMBER_OF_SERIES = "00201206",
+  NUMBER_OF_INSTANCES = "00201208",
 }
 
 export type QidoResponse = {
-  [TAGS.MODALITY]: {
-    Value: [string];
-  };
-  [TAGS.STUDY_UID]: {
-    Value: [string];
-  };
+  [k in TAGS]: { Value: any[] };
 }[];
 
 export interface Identifier {
@@ -65,6 +60,12 @@ export interface Coding {
   display?: string;
 }
 
+export interface Reference {
+  display?: string;
+  reference?: string;
+  identifer?: Identifier;
+}
+
 export interface FhirResponse {
   resourceType: "Bundle";
   entry: {
@@ -74,6 +75,12 @@ export interface FhirResponse {
         system: "urn:dicom:uid";
         value: string;
       }[];
+      referrer?: Reference;
+      subject?: Reference;
+      numberOfSeries?: number;
+      numberOfInstances?: number;
+      started?: string;
+      description?: string;
       contained: ({
         resourceType: "Endpoint";
         id: string;
