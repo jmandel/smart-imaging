@@ -109,7 +109,7 @@ input[type="submit"]:hover {
 .container {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 0 1rem;
+  padding: 0 0;
 }
 
 /* Menu bar */
@@ -120,6 +120,7 @@ input[type="submit"]:hover {
   background-color: var(--primary-color);
   padding: 0rem 1rem;
   margin-bottom: 1rem;
+  border-bottom: .2rem solid var(--hover-color)
 }
 
 .menu-bar .logo {
@@ -150,8 +151,7 @@ input[type="submit"]:hover {
 .row {
   display: flex;
   flex-wrap: wrap;
-  margin-left: -0.5rem;
-  margin-right: -0.5rem;
+  column-gap: 1rem;
 }
 
 .col {
@@ -163,22 +163,23 @@ input[type="submit"]:hover {
 
 /* 4-column layout */
 .col-1 {
-  width: 25%;
+  flex: 1 1 calc(25% - 1rem);
 }
 .col-2 {
-  width: 50%;
+  flex: 2 1 calc(50% - 1rem);
 }
 .col-3 {
-  width: 75%;
+  flex-grow: 3;
 }
 .col-4 {
-  width: 100%;
+  flex-grow: 4;
 }
 
 /* Responsive styles */
 @media (max-width: 767px) {
   .col-1, .col-2, .col-3, .col-4 {
     width: 100%;
+    flex-basis: 100%;
   }
 }
 

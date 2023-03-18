@@ -86,7 +86,8 @@
   }
 
   let studyLoaded: Study | null;
-  $: allRetrievedInstances.length && (studyLoaded = {
+  $: allRetrievedInstances.length &&
+    (studyLoaded = {
       date: allRetrievedInstances?.[0]?.instanceDate,
       description: allRetrievedInstances?.[0]?.studyDescription,
       patient: {
@@ -176,7 +177,7 @@
     {/each}
   {:else}
     <div class="row">
-      <div class="col col-2">
+      <div class="col col-2 content-box">
         <h2>Patient</h2>
         {#if studyLoaded}
           <p>Name: {studyLoaded.patient.name}</p>
@@ -187,7 +188,7 @@
           <p>Loading...</p>
         {/if}
       </div>
-      <div class="col col-2">
+      <div class="col col-1 content-box">
         <h2>Select Series</h2>
         <div class="series-buttons">
           {#each studyLoaded.series as series, i}
