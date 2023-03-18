@@ -33,14 +33,13 @@ interface DicomWebResult {
 export class DicomProvider {
   constructor(public config: DicomProviderConfig, public wadoBase: string) {}
   authHeader() {
-    return `Basic ${
-      btoa(`${this.config.authentication.username}:${this.config.authentication.password}`)
-    }`;
+    return `Basic ${btoa(`${this.config.authentication.username}:${this.config.authentication.password}`)}`;
   }
-  async evaluateDicomWeb(path: string): Promise<DicomWebResult> {
+  async evaluateDicomWeb(path: string, reqHeaders: Headers): Promise<DicomWebResult> {
     const proxied = await fetch(`${this.config.endpoint}/studies/${path}`, {
       headers: {
         authorization: this.authHeader(),
+        accept: reqHeaders.get("accept") || `multipart/related; type=application/dicom; transfer-syntax=*`,
       },
     });
     const headers: Record<string, string> = {};
@@ -56,15 +55,13 @@ export class DicomProvider {
   async lookupStudies(patient: Patient): Promise<FhirResponse> {
     let query = ``;
     if (this.config.lookup === "studies-by-mrn") {
-      const mrnIdentifier = patient.identifier.filter((i: Identifier) =>
-        i?.type?.text?.match("Medical Record Number")
-      );
+      const mrnIdentifier = patient.identifier.filter((i: Identifier) => i?.type?.text?.match("Medical Record Number"));
       const mrn = mrnIdentifier[0].value;
       console.log("MRN", mrn);
       query = `PatientID=${mrn}`;
     }
     const qido = new URL(`${this.config.endpoint}/studies?${query}`);
-    console.log("Q", qido)
+    console.log("Q", qido);
     const studies: QidoResponse = await fetch(qido, {
       headers: {
         authorization: this.authHeader(),
@@ -97,7 +94,7 @@ export class DicomProvider {
               })),
             },
           };
-        }),
+        })
       ),
     };
   }
@@ -114,9 +111,7 @@ const wadoInnerRouter = new Router<AppState>().get("/studies/:uid(.*)", async (c
 export const wadoRouter = new Router<AppState>()
   .all("/:studyPatientBinding/studies/:uid/(.*)", async (ctx, next) => {
     const token = await jose.compactVerify(ctx.params.studyPatientBinding, ephemeralKey);
-    const { uid, patient }: { uid: string; patient: string } = JSON.parse(
-      new TextDecoder().decode(token.payload),
-    );
+    const { uid, patient }: { uid: string; patient: string } = JSON.parse(new TextDecoder().decode(token.payload));
     if (patient !== ctx.state.authorizedForPatient.id) {
       throw `Patient mismatch: ${patient} vs ${ctx.state.authorizedForPatient.id}`;
     }

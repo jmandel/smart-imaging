@@ -1,14 +1,41 @@
 <script lang="ts">
   import { onMount, afterUpdate } from "svelte";
   import * as dicomParser from "dicom-parser";
-  import Thumbnail from "./Thumbnail.svelte";
   import Viewer from "./Viewer.svelte";
 
   import * as cornerstone from "cornerstone-core";
   import * as cornerstoneWADOImageLoader from "cornerstone-wado-image-loader";
-  import { get } from "svelte/store";
   import { parseMultipart } from "./multipart";
   import * as _ from "lodash";
+
+  import { create as createClient, type Client, type ClientConfig } from "./lib/smart";
+
+  let clientConfig: ClientConfig = {
+    clientId: "imaging-app",
+    iss: "https://imaging.argo.run/v/r4/sim/WzIsIjg3YTMzOWQwLThjYWUtNDE4ZS04OWM3LTg2NTFlNmFhYjNjNiIsIiIsIkFVVE8iLDAsMCwwLCIiLCIiLCIiLCIiLCIiLCIiLCIiLDAsMV0/fhir",
+    scope: "launch/patient patient/*.rs",
+    imagingServer: "https://imaging.argo.run/img/open/fhir",
+  };
+  const {client, authorize} = createClient(clientConfig)
+
+  let imagingStudies = [];
+  async function fetchPatient(client: Client) {
+    const patient = await client.patient.read();
+    console.log("Patient", patient);
+
+    const images = await client.images();
+    imagingStudies = images.entry.map(e => e.resource).map(r => ({
+      address: r.contained[0].address,
+      modality: r.modality[0].code
+    }))
+    console.log("Images", images, imagingStudies);
+  }
+
+  $: {
+    if ($client) {
+      fetchPatient($client);
+    }
+  }
 
   cornerstoneWADOImageLoader.external.dicomParser = dicomParser;
   cornerstoneWADOImageLoader.external.cornerstone = cornerstone;
@@ -33,12 +60,14 @@
   let allRetrievedInstances: InstanceDetails[] = [];
 
   interface Study {
+    date: string;
+    description;
     patient: {
       name: string;
       id: string;
     };
     series: {
-      number: string;
+      number: number;
       name: string;
       instances: string[];
     }[];
@@ -57,6 +86,8 @@
 
   let studyLoaded: Study | null;
   $: studyLoaded = {
+    date: allRetrievedInstances?.[0]?.instanceDate,
+    description: allRetrievedInstances?.[0]?.studyDescription,
     patient: {
       name: allRetrievedInstances?.[0]?.patientName,
       id: allRetrievedInstances?.[0]?.patientId,
@@ -64,8 +95,8 @@
     series: _.chain(allRetrievedInstances)
       .groupBy((i) => i.seriesNumber)
       .values()
-      .map((seriesArray) => ({
-        number: seriesArray[0].seriesNumber,
+      .map((seriesArray, i) => ({
+        number: i,
         name: seriesArray[0].seriesDescription,
         instances: seriesArray.map((s) => s.imageId),
       }))
@@ -74,10 +105,8 @@
 
   $: console.log("Study", studyLoaded);
 
-  let seriesList = new Map();
   let selectedSeries = null;
   let selectedInstance = null;
-  let selectedInstanceIndex = -1;
 
   function parseStudyMetadata() {
     cornerstoneWADOImageLoader.wadouri.fileManager.purge();
@@ -100,228 +129,82 @@
     return instances;
   }
 
-  function createSeriesList() {
-    const seriesMap = new Map();
-    allRetrievedInstances.forEach((metadata) => {
-      if (!seriesMap.has(metadata.seriesNumber)) {
-        seriesMap.set(metadata.seriesNumber, []);
-      }
-      seriesMap.get(metadata.seriesNumber).push(metadata);
-    });
-
-    return seriesMap;
-  }
-
   function selectSeries(seriesNumber) {
     selectedSeries = seriesNumber;
-    selectedInstance = seriesList.get(seriesNumber)[0].imageId;
-    selectedInstanceIndex = 0;
+    selectedInstance = studyLoaded.series[seriesNumber].instances[0];
   }
 
-  function selectInstance(index) {
-    selectedInstance = seriesList.get(selectedSeries)[index].imageId;
-    selectedInstanceIndex = index;
-  }
-
-  function navigateInstances(event) {
-    if (!selectedSeries) return;
-
-    const instances = seriesList.get(selectedSeries);
-    if (event.key === "ArrowLeft" && selectedInstanceIndex > 0) {
-      selectInstance(selectedInstanceIndex - 1);
-    } else if (event.key === "ArrowRight" && selectedInstanceIndex < instances.length - 1) {
-      selectInstance(selectedInstanceIndex + 1);
-    }
-  }
-
-  async function fetchStudy() {
-    const studyMultipart = await fetch(
-      "https://imaging.argo.run/orthanc/dicom-web/studies/1.2.276.0.7230010.3.1.2.4094306560.1.1678736912.732222",
-      {
-        headers: {
-          accept: `multipart/related; type=application/dicom; transfer-syntax=*`,
-          authorization: `Basic ${btoa(`argonaut:argonaut`)}`,
-        },
-      }
-    );
+  async function fetchStudy(url: string) {
+    const studyMultipart = await fetch(url, {
+      headers: {
+        accept: `multipart/related; type=application/dicom; transfer-syntax=*`,
+        authorization: $client.getAuthorizationHeader()
+      },
+    });
 
     const parsed = await parseMultipart(studyMultipart);
     study = parsed.parts.map((p) => p.body);
     console.log("Parsed all multi parts", parsed, study);
     allRetrievedInstances = parseStudyMetadata();
-    seriesList = createSeriesList();
   }
 
-  onMount(() => {
-    document.addEventListener("keydown", navigateInstances);
-    fetchStudy();
-
-    return () => {
-      document.removeEventListener("keydown", navigateInstances);
-    };
-  });
-
-  afterUpdate(() => {
-    if (selectedSeries && !seriesList.get(selectedSeries).find((meta) => meta.imageId === selectedInstance)) {
-      selectInstance(0);
-    }
-  });
+  // fetchStudy(
+  //   "https://imaging.argo.run/orthanc/dicom-web/studies/1.2.276.0.7230010.3.1.2.4094306560.1.1678736912.732222"
+  // );
 </script>
 
-<div class="menu-bar">
-  <div class="menu-item">File</div>
-  <div class="menu-item">Edit</div>
-  <div class="menu-item">View</div>
-  <div class="menu-item">Help</div>
+<div class="menu-bar container">
+  <h1 class="logo">
+    SMART
+    <span class="material-icons">image</span>
+    Demo
+  </h1>
+  <nav class="nav-links">
+    <div style="display: flex; gap: .5rem;">Settings<span class="material-icons">settings</span></div>
+  </nav>
 </div>
 
 <div class="container">
-  <div class="metadata-selection">
-    <h2>Patient</h2>
-    {#if allRetrievedInstances.length}
-      <p>Name: {allRetrievedInstances[0].patientName}</p>
-      <p>ID: {allRetrievedInstances[0].patientId.slice(0, 10)}...</p>
-      <p>Date: {allRetrievedInstances[0].instanceDate.slice(0, 4)}</p>
-      <p>Study Description: {allRetrievedInstances[0].studyDescription}</p>
-    {:else}
-      <p>Loading...</p>
-    {/if}
-  </div>
-
-  <div class="metadata-selection">
-    <h2>Select Series</h2>
-    <div class="series-buttons">
-      {#each Array.from(seriesList.keys()).map( (k) => [k, seriesList.get(k)[0].seriesDescription] ) as [seriesNumber, seriesDescription]}
-        <button on:click={() => selectSeries(seriesNumber)}>{seriesDescription}</button>
-      {/each}
+  {#if $client === null}
+  <div class="row">
+    <div class="col col-2">
+      <button on:click={() => authorize(clientConfig)}>Connect</button>
     </div>
   </div>
-
-  <div class="images">
-    {#if selectedSeries}
-      <h2>Instances</h2>
-      <div class="instances">
-        {#each seriesList.get(selectedSeries) as instance, index (instance.imageId)}
-          <div
-            style="border: {selectedInstance === instance.imageId ? '2px solid blue' : '2px solid transparent'};"
-            on:click={() => selectInstance(index)}
-          >
-            <Thumbnail imageId={instance.imageId} />
-            <p>Instance: {instance.instanceNumber}</p>
-          </div>
+  {:else}
+    {#each imagingStudies as study}
+      <button value={study.address} on:click={() => fetchStudy(study.address)}>Fetch {study.modality}</button>
+    {/each}
+  {/if}
+  <div class="row">
+    <div class="col col-2">
+      <h2>Patient</h2>
+      {#if studyLoaded}
+        <p>Name: {studyLoaded.patient.name}</p>
+        <p>ID: {studyLoaded.patient.id}</p>
+        <p>Date: {studyLoaded.date}</p>
+        <p>Study Description: {studyLoaded.description}</p>
+      {:else}
+        <p>Loading...</p>
+      {/if}
+    </div>
+    <div class="col col-2">
+      <h2>Select Series</h2>
+      <div class="series-buttons">
+        {#each studyLoaded.series as series, i}
+          <button on:click={() => selectSeries(i)}>{series.name}</button>
         {/each}
       </div>
-    {/if}
+    </div>
   </div>
+  {#if selectedInstance}
+    <div class="row">
+      <div class="col col-4">
+        <Viewer imageId={selectedInstance} />
+      </div>
+    </div>
+  {/if}
 </div>
 
-{#if selectedInstance}
-  <Viewer imageId={selectedInstance} />
-{/if}
-
 <style>
-  :root {
-    --background-color: #1e1e1e;
-    --text-color: #e0e0e0;
-    --primary-color: #4e9cce;
-    --secondary-color: #3a6f8f;
-    --border-color: #3a6f8f;
-    --font-family: "Segoe UI", "Roboto", "Helvetica Neue", Arial, sans-serif;
-  }
-
-  :global(body) {
-    font-family: var(--font-family);
-    background-color: var(--background-color);
-    color: var(--text-color);
-    margin: 0;
-  }
-
-  :global(#app) {
-    flex-wrap: wrap;
-    display: flex;
-    width: 100%;
-    height: 100%;
-    place-self: flex-start;
-  }
-
-  h2 {
-    font-weight: bold;
-    margin-bottom: 0.5rem;
-  }
-
-  p {
-    margin-top: 0;
-    margin-bottom: 0.5rem;
-  }
-
-  button {
-    background-color: var(--primary-color);
-    border: none;
-    color: var(--text-color);
-    padding: 10px 20px;
-    text-align: center;
-    text-decoration: none;
-    display: inline-block;
-    font-size: 14px;
-    margin: 2px 2px;
-    cursor: pointer;
-    border-radius: 4px;
-    font-family: var(--font-family);
-    transition: background-color 0.3s;
-  }
-
-  button:hover {
-    background-color: var(--secondary-color);
-  }
-
-  .container {
-    display: flex;
-  }
-
-  .metadata-selection {
-    flex: 1;
-    align-items: first baseline;
-  }
-
-  .images {
-    flex: 1;
-  }
-
-  .series-buttons {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    margin-bottom: 20px;
-  }
-
-  .instances {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-    gap: 10px;
-  }
-
-  .menu-bar {
-    display: flex;
-    align-items: center;
-    background-color: var(--secondary-color);
-    padding: 0.5rem 1rem;
-    flex: 0 0 100%;
-  }
-
-  .menu-item {
-    margin-left: 1rem;
-    cursor: pointer;
-  }
-
-  .menu-item:first-child {
-    margin-left: 0;
-  }
-
-  .viewer-controls {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    gap: 10px;
-    margin-bottom: 20px;
-  }
 </style>

@@ -34,8 +34,7 @@
 
 <style>
   .viewer {
-    width: 100%;
-    height: 600px;
+    height: 800px;
     background-color: black;
     position: relative;
   }
