@@ -30,6 +30,59 @@ interface DicomWebResult {
   body: ReadableStream<Uint8Array>;
 }
 
+function formatName(name: string): string | undefined {
+  return name ? name.split("^").map(n => n.trim()).filter(n => !!n).join(" ") : undefined;
+}
+
+function formatDate(dateString: string, timeString?: string):string | undefined {
+  if (!dateString) return undefined;
+  const date = dateString.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3');
+  if (!timeString) return new Date(date).toISOString();
+
+  const time = timeString.replace(/(\d{2})(\d{2})(\d{2})(\.\d{1,6})?/, '$1:$2:$3$4');
+  return new Date(`${date}T${time}`).toISOString();
+}
+
+
+function formatResource(q, patient: Patient, wadoBase: string): any {
+
+  const uid = q[TAGS.STUDY_UID].Value[0];
+  const studyDateTime = formatDate(q[TAGS.STUDY_DATE].Value?.[0], q[TAGS.STUDY_TIME].Value?.[0]);
+
+  return {
+    resourceType: "ImagingStudy",
+    status: "available",
+    id: q[TAGS.STUDY_UID].Value[0],
+    subject: {
+      display: formatName(q[TAGS.PATIENT_NAME]?.Value?.[0]?.Alphabetic),
+    },
+    started: studyDateTime,
+    referrer: {
+      display: formatName(q[TAGS.REFERRING_PHYSICIAN_NAME]?.Value?.[0]?.Alphabetic),
+    },
+    description: q[TAGS.STUDY_ID]?.Value,
+    numberOfSeries: q[TAGS.NUMBER_OF_SERIES]?.Value?.[0],
+    numberOfInstances: q[TAGS.NUMBER_OF_INSTANCES]?.Value?.[0],
+    contained: [
+      {
+        resourceType: "Endpoint",
+        id: "e",
+        address: `${wadoBase}/${signStudyUid(uid, patient.id)}`,
+        connectionType: {
+          system: "http://terminology.hl7.org/CodeSystem/endpoint-connection-type",
+          code: "dicom-wado-rs",
+        },
+      },
+    ],
+    endpoint: { reference: "#e" },
+    identifier: [{ system: "urn:dicom:uid", value: `urn:oid:${uid}` }],
+    modality: q[TAGS.MODALITIES_IN_STUDY].Value.map((code: string) => ({
+      system: `http://dicom.nema.org/resources/ontology/DCM`,
+      code,
+    })),
+  };
+}
+
 export class DicomProvider {
   constructor(public config: DicomProviderConfig, public wadoBase: string) {}
   authHeader() {
@@ -70,32 +123,7 @@ export class DicomProvider {
     console.log("Studies", studies);
     return {
       resourceType: "Bundle",
-      entry: await Promise.all(
-        studies.map(async (q) => {
-          const uid = q[TAGS.STUDY_UID].Value[0];
-          const modality = q[TAGS.MODALITY].Value;
-          return {
-            resource: {
-              resourceType: "ImagingStudy",
-              status: "available",
-              id: uid,
-              contained: [
-                {
-                  resourceType: "Endpoint",
-                  id: "e",
-                  address: `${this.wadoBase}/${await signStudyUid(uid, patient.id)}/studies/${uid}`,
-                },
-              ],
-              endpoint: { reference: "#e" },
-              identifier: [{ system: "urn:dicom:uid", value: `urn:oid:${uid}` }],
-              modality: modality.map((code) => ({
-                system: `http://dicom.nema.org/resources/ontology/DCM`,
-                code,
-              })),
-            },
-          };
-        })
-      ),
+      entry: studies.map((q) => ({resource: formatResource(q, patient, this.wadoBase)}))
     };
   }
 }

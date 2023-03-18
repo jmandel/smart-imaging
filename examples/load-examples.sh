@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -e
+
 mkdir scratch
 pushd scratch
 
@@ -8,17 +10,21 @@ do
     wget $v;
 done
 
-tar -xzvf *.tgz;
-
-for i in $(find . -name *.dcm);
+for v in $(ls *.tgz);
 do
-    echo "POSTing $i"
+    echo "Untar $v";
+    tar -xzvf "$v";
+done
+
+find . -name *.dcm -print0 | while IFS= read -r -d $'\0' file;
+do
+    echo "POSTing $file"
     wget --auth-no-challenge \
     --user argonaut \
     --password argonaut \
     -O /dev/null \
     http://orthanc:8042/instances \
-    --post-file="$i"
+    --post-file="$file"
 done
 
 popd

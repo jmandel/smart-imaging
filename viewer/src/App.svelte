@@ -18,7 +18,7 @@
   };
   const { client, authorize } = createClient(clientConfig);
 
-  let imagingStudies = [];
+  let imagingStudies: StudyToFetch[] = [];
   async function fetchPatient(client: Client) {
     const patient = await client.patient.read();
     console.log("Patient", patient);
@@ -27,6 +27,7 @@
     imagingStudies = images.entry
       .map((e) => e.resource)
       .map((r) => ({
+        uid: r.identifier[0].value.slice(8),
         address: r.contained[0].address,
         modality: r.modality[0].code,
       }));
@@ -134,8 +135,13 @@
     selectedInstance = studyLoaded.series[seriesNumber].instances[0];
   }
 
-  async function fetchStudy(url: string) {
-    const studyMultipart = await fetch(url, {
+  interface StudyToFetch {
+    address: string,
+    uid: string,
+    modality: string
+  }
+  async function fetchStudy({address, uid}: StudyToFetch) {
+    const studyMultipart = await fetch(`${address}/studies/${uid}`, {
       headers: {
         accept: `multipart/related; type=application/dicom; transfer-syntax=*`,
         authorization: $client.getAuthorizationHeader(),
@@ -173,7 +179,7 @@
     </div>
   {:else if !studyLoaded}
     {#each imagingStudies as study}
-      <button value={study.address} on:click={() => fetchStudy(study.address)}>Fetch {study.modality}</button>
+      <button value={study.address} on:click={() => fetchStudy(study)}>Fetch {study.modality}</button>
     {/each}
   {:else}
     <div class="row">
@@ -209,4 +215,5 @@
 </div>
 
 <style>
+  .series-buttons button {width: 100%}
 </style>
