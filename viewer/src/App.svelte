@@ -38,7 +38,7 @@
     const instances = studyLoaded.series[selectedSeries].instances;
     const currentInstanceIndex = instances.indexOf(selectedInstance);
     const target = exact ?? currentInstanceIndex + change;
-    if (target > 0 && target < instances.length) {
+    if (target >= 0 && target < instances.length) {
       selectedInstance = instances[target];
       instanceRangeSlider = target;
     }
@@ -174,18 +174,20 @@
     uid: string;
     modality: string;
   }
+  let studyDownloading = false;
   async function fetchStudy({ address, uid }: StudyToFetch) {
+    studyDownloading = true
     const studyMultipart = await fetch(`${address}/studies/${uid}`, {
       headers: {
         accept: `multipart/related; type=application/dicom; transfer-syntax=*`,
         authorization: $client.getAuthorizationHeader(),
       },
     });
-
     const parsed = await parseMultipart(studyMultipart);
     const study = parsed.parts.map((p) => p.body);
     console.log("Parsed all multi parts", parsed, study);
     allRetrievedInstances = parseStudyMetadata(study);
+    studyDownloading = false
   }
 
   // fetchStudy(
@@ -213,7 +215,7 @@
     </div>
   {:else if !studyLoaded}
     {#each imagingStudies as study}
-      <button value={study.address} on:click={() => fetchStudy(study)}>Fetch {study.modality}</button>
+      <button disabled={studyDownloading} value={study.address} on:click={() => fetchStudy(study)}>Fetch {study.modality}</button>
     {/each}
   {:else}
     <div class="row">
@@ -252,7 +254,7 @@
             on:input={(v) => nextInstance(null, parseInt(v.target.value))}
           />
         {/if}
-        <Viewer imageId={selectedInstance} />
+        <Viewer seriesIndex={selectedSeries} imageId={selectedInstance} />
       </div>
     </div>
   {/if}

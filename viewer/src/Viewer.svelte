@@ -2,31 +2,37 @@
 <script>
   import { onMount, onDestroy } from "svelte";
   import * as cornerstone from "cornerstone-core";
-  import * as cornerstoneTools from "cornerstone-tools";
 
   export let imageId;
+  export let seriesIndex;
 
   let viewerElement;
-
-  function loadImage(imageId) {
+  function loadImage(imageId, needReset = false) {
     if (!viewerElement) {
       return;
     }
     cornerstone.loadImage(imageId).then((image) => {
       cornerstone.displayImage(viewerElement, image);
+      if (needReset) {
+        cornerstone.reset(viewerElement)
+      }
     });
   }
 
   onMount(() => {
     cornerstone.enable(viewerElement);
-    loadImage(imageId);
+    loadImage(imageId, true);
   });
 
   onDestroy(() => {
     cornerstone.disable(viewerElement);
   });
 
-  $: loadImage(imageId);
+  let prevSeriesIndex;
+  $: {
+    loadImage(imageId, seriesIndex != prevSeriesIndex)
+    prevSeriesIndex = seriesIndex
+  }
 </script>
 
 <div class="viewer" bind:this={viewerElement} />
@@ -34,7 +40,6 @@
 <style>
   .viewer {
     height: 800px;
-    background-color: black;
     position: relative;
   }
 </style>

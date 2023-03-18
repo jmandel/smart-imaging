@@ -68,6 +68,11 @@ button, .button {
   transition: background-color 0.3s ease, transform 0.3s ease;
 }
 
+button:disabled, button:disabled:hover{
+  opacity: .6;
+  transform: scale(1);
+}
+
 button:hover, .button:hover {
   background-color: var(--hover-color);
   transform: scale(1.05);
