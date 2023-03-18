@@ -16,7 +16,7 @@
     scope: "launch/patient patient/*.rs",
     imagingServer: "https://imaging.argo.run/img/open/fhir",
   };
-  const {client, authorize} = createClient(clientConfig)
+  const { client, authorize } = createClient(clientConfig);
 
   let imagingStudies = [];
   async function fetchPatient(client: Client) {
@@ -24,10 +24,12 @@
     console.log("Patient", patient);
 
     const images = await client.images();
-    imagingStudies = images.entry.map(e => e.resource).map(r => ({
-      address: r.contained[0].address,
-      modality: r.modality[0].code
-    }))
+    imagingStudies = images.entry
+      .map((e) => e.resource)
+      .map((r) => ({
+        address: r.contained[0].address,
+        modality: r.modality[0].code,
+      }));
     console.log("Images", images, imagingStudies);
   }
 
@@ -56,7 +58,6 @@
   };
   cornerstoneWADOImageLoader.webWorkerManager.initialize(config);
 
-  let study = []; // Your DICOM binary Uint8Arrays
   let allRetrievedInstances: InstanceDetails[] = [];
 
   interface Study {
@@ -85,32 +86,31 @@
   }
 
   let studyLoaded: Study | null;
-  $: studyLoaded = {
-    date: allRetrievedInstances?.[0]?.instanceDate,
-    description: allRetrievedInstances?.[0]?.studyDescription,
-    patient: {
-      name: allRetrievedInstances?.[0]?.patientName,
-      id: allRetrievedInstances?.[0]?.patientId,
-    },
-    series: _.chain(allRetrievedInstances)
-      .groupBy((i) => i.seriesNumber)
-      .values()
-      .map((seriesArray, i) => ({
-        number: i,
-        name: seriesArray[0].seriesDescription,
-        instances: seriesArray.map((s) => s.imageId),
-      }))
-      .value(),
-  };
+  $: allRetrievedInstances.length && (studyLoaded = {
+      date: allRetrievedInstances?.[0]?.instanceDate,
+      description: allRetrievedInstances?.[0]?.studyDescription,
+      patient: {
+        name: allRetrievedInstances?.[0]?.patientName,
+        id: allRetrievedInstances?.[0]?.patientId,
+      },
+      series: _.chain(allRetrievedInstances)
+        .groupBy((i) => i.seriesNumber)
+        .values()
+        .map((seriesArray, i) => ({
+          number: i,
+          name: seriesArray[0].seriesDescription,
+          instances: seriesArray.map((s) => s.imageId),
+        }))
+        .value(),
+    });
 
   $: console.log("Study", studyLoaded);
 
   let selectedSeries = null;
   let selectedInstance = null;
 
-  function parseStudyMetadata() {
+  function parseStudyMetadata(study: Uint8Array[]) {
     cornerstoneWADOImageLoader.wadouri.fileManager.purge();
-
     const instances: InstanceDetails[] = study.map((dicomData) => {
       const imageId = cornerstoneWADOImageLoader.wadouri.fileManager.add(new Blob([dicomData]));
       const dataSet = dicomParser.parseDicom(dicomData);
@@ -125,7 +125,6 @@
         instanceNumber: dataSet.intString("x00200013"),
       };
     });
-
     return instances;
   }
 
@@ -138,14 +137,14 @@
     const studyMultipart = await fetch(url, {
       headers: {
         accept: `multipart/related; type=application/dicom; transfer-syntax=*`,
-        authorization: $client.getAuthorizationHeader()
+        authorization: $client.getAuthorizationHeader(),
       },
     });
 
     const parsed = await parseMultipart(studyMultipart);
-    study = parsed.parts.map((p) => p.body);
+    const study = parsed.parts.map((p) => p.body);
     console.log("Parsed all multi parts", parsed, study);
-    allRetrievedInstances = parseStudyMetadata();
+    allRetrievedInstances = parseStudyMetadata(study);
   }
 
   // fetchStudy(
@@ -166,37 +165,39 @@
 
 <div class="container">
   {#if $client === null}
-  <div class="row">
-    <div class="col col-2">
-      <button on:click={() => authorize(clientConfig)}>Connect</button>
+    <div class="row">
+      <div class="col col-2">
+        <button on:click={() => authorize()}>Connect</button>
+      </div>
     </div>
-  </div>
-  {:else}
+  {:else if !studyLoaded}
     {#each imagingStudies as study}
       <button value={study.address} on:click={() => fetchStudy(study.address)}>Fetch {study.modality}</button>
     {/each}
-  {/if}
-  <div class="row">
-    <div class="col col-2">
-      <h2>Patient</h2>
-      {#if studyLoaded}
-        <p>Name: {studyLoaded.patient.name}</p>
-        <p>ID: {studyLoaded.patient.id}</p>
-        <p>Date: {studyLoaded.date}</p>
-        <p>Study Description: {studyLoaded.description}</p>
-      {:else}
-        <p>Loading...</p>
-      {/if}
-    </div>
-    <div class="col col-2">
-      <h2>Select Series</h2>
-      <div class="series-buttons">
-        {#each studyLoaded.series as series, i}
-          <button on:click={() => selectSeries(i)}>{series.name}</button>
-        {/each}
+  {:else}
+    <div class="row">
+      <div class="col col-2">
+        <h2>Patient</h2>
+        {#if studyLoaded}
+          <p>Name: {studyLoaded.patient.name}</p>
+          <p>ID: {studyLoaded.patient.id}</p>
+          <p>Date: {studyLoaded.date}</p>
+          <p>Study Description: {studyLoaded.description}</p>
+        {:else}
+          <p>Loading...</p>
+        {/if}
+      </div>
+      <div class="col col-2">
+        <h2>Select Series</h2>
+        <div class="series-buttons">
+          {#each studyLoaded.series as series, i}
+            <button on:click={() => selectSeries(i)}>{series.name}</button>
+          {/each}
+        </div>
       </div>
     </div>
-  </div>
+  {/if}
+
   {#if selectedInstance}
     <div class="row">
       <div class="col col-4">
