@@ -241,7 +241,7 @@
 
   {#if selectedInstance}
     <div class="row">
-      <div class="col col-4">
+      <div class="col col-4 content-box">
         {#if instanceRange[1] > 0}
           <input
             class="instance-slider"
