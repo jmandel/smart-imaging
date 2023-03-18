@@ -137,7 +137,7 @@ const wadoInnerRouter = new Router<AppState>().get("/studies/:uid(.*)", async (c
 });
 
 export const wadoRouter = new Router<AppState>()
-  .all("/:studyPatientBinding/studies/:uid/(.*)", async (ctx, next) => {
+  .all("/:studyPatientBinding/studies/:uid/(.*)?", async (ctx, next) => {
     const token = await jose.compactVerify(ctx.params.studyPatientBinding, ephemeralKey);
     const { uid, patient }: { uid: string; patient: string } = JSON.parse(new TextDecoder().decode(token.payload));
     if (patient !== ctx.state.authorizedForPatient.id) {
