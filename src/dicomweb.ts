@@ -101,7 +101,7 @@ export class DicomProvider {
 }
 
 const wadoInnerRouter = new Router<AppState>().get("/studies/:uid(.*)", async (ctx) => {
-  const { headers, body } = await ctx.state.imagesProvider.evaluateDicomWeb(`${ctx.params.uid}`);
+  const { headers, body } = await ctx.state.imagesProvider.evaluateDicomWeb(`${ctx.params.uid}`, ctx.request.headers);
   Object.entries(headers).forEach(([k, v]) => {
     ctx.response.headers.set(k, v);
   });
