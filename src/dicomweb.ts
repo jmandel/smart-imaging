@@ -96,12 +96,12 @@ export class DicomProvider {
       },
     });
     const headers: Record<string, string> = {};
+    headers['cache-control'] = 'private, max-age=3600';
     ["content-type", "content-length"].map((h) => {
       if (proxied.headers.get(h)) {
         headers[h] = proxied.headers.get(h)!;
       }
     });
-
     return { headers, body: proxied.body! };
   }
 
