@@ -1,11 +1,11 @@
 /* Variables and color palette */
 :root {
-  --background-color: #121212;
-  --primary-color: #3e3e3e;
+  --background-color: #1a1a1a;
+  --primary-color: #313131;
   --text-color: #F5F5F5;
   --secondary-text-color: #BDBDBD;
-  --accent-color: #29B6F6;
-  --hover-color: #4FC3F7;
+  --accent-color: #8BC34A;
+  --hover-color: #9CCC65;
   --box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 }
 
