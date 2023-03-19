@@ -23,7 +23,6 @@ export function create(config: ClientConfig) {
     fhirclient.oauth2.ready().then((c) => {
       const cstate = c.state as typeof c.state & ClientConfig;
       (c as unknown as ModifiedClient).images = async function images() {
-        console.log("Req", cstate);
         const ibundle = await c.request(config.imagingServer + "/ImagingStudy?patient=" + cstate.tokenResponse.patient);
         return ibundle;
       };

@@ -20,9 +20,13 @@
 
   let imagingStudies: StudyToFetch[] = [];
   async function fetchPatient(client: Client) {
-    const patient = await client.patient.read();
-    console.log("Patient", patient);
-
+    try {
+      const patient = await client.patient.read();
+      console.log("Patient", patient);
+    } catch {
+      console.log("Could not fetch patient; destroying client")
+      $client = null;
+    }
     const images = await client.images();
     imagingStudies = images.entry
       .map((e) => e.resource)
@@ -62,6 +66,7 @@
   $: {
     if ($client) {
       fetchPatient($client);
+      window.c = $client
     }
   }
 
@@ -196,13 +201,13 @@
 </script>
 
 <div class="menu-bar container">
-  <h1 class="logo">
+  <h1 class="logo" style="display: flex; align-items: center;">
     SMART
     <span class="material-icons">image</span>
     Demo
   </h1>
   <nav class="nav-links">
-    <div style="display: flex; gap: .5rem;">Settings<span class="material-icons">settings</span></div>
+    <div style="display: flex; gap: .5rem; align-items: center">Settings<span class="material-icons">settings</span></div>
   </nav>
 </div>
 
@@ -266,8 +271,9 @@
   {/if}
   <div class="row">
     <footer class="content-box col col-4">
-      SMART Imaging Access. Related: <a href="https://chat.fhir.org/#narrow/stream/179170-smart">chat</a>,
-      <a href="https://github.com/jmandel/smart-imaging">source</a>.
+      SMART Imaging Access. Related:
+      <a target="_blank" href="https://chat.fhir.org/#narrow/stream/179170-smart">chat</a>,
+      <a target="_blank" href="https://github.com/jmandel/smart-imaging">source</a>.
     </footer>
   </div>
 </div>
