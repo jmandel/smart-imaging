@@ -176,7 +176,7 @@
   }
   let studyDownloading = false;
   async function fetchStudy({ address, uid }: StudyToFetch) {
-    studyDownloading = true
+    studyDownloading = true;
     const studyMultipart = await fetch(`${address}/studies/${uid}`, {
       headers: {
         accept: `multipart/related; type=application/dicom; transfer-syntax=*`,
@@ -187,7 +187,7 @@
     const study = parsed.parts.map((p) => p.body);
     console.log("Parsed all multi parts", parsed, study);
     allRetrievedInstances = parseStudyMetadata(study);
-    studyDownloading = false
+    studyDownloading = false;
   }
 
   // fetchStudy(
@@ -209,14 +209,20 @@
 <div class="container">
   {#if $client === null}
     <div class="row">
-      <div class="col col-2">
+      <div class="col col-2 content-box">
         <button on:click={() => authorize()}>Connect</button>
       </div>
     </div>
   {:else if !studyLoaded}
-    {#each imagingStudies as study}
-      <button disabled={studyDownloading} value={study.address} on:click={() => fetchStudy(study)}>Fetch {study.modality}</button>
-    {/each}
+    <div class="row">
+      <div class="col col-2 content-box">
+        {#each imagingStudies as study}
+          <button disabled={studyDownloading} value={study.address} on:click={() => fetchStudy(study)}
+            >Fetch {study.modality}</button
+          >
+        {/each}
+      </div>
+    </div>
   {:else}
     <div class="row">
       <div class="col col-2 content-box">
@@ -258,6 +264,12 @@
       </div>
     </div>
   {/if}
+  <div class="row">
+    <footer class="content-box col col-4">
+      SMART Imaging Access. Related: <a href="https://chat.fhir.org/#narrow/stream/179170-smart">chat</a>,
+      <a href="https://github.com/jmandel/smart-imaging">source</a>.
+    </footer>
+  </div>
 </div>
 
 <style>

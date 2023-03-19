@@ -18,6 +18,7 @@
 
 html, body, #app {
   height: 100%;
+  font-size: 18px;
 }
 
 #app { }
@@ -61,7 +62,7 @@ button, .button {
   cursor: pointer;
   padding: 0.75rem 1.5rem;
   margin: .25rem;
-  font-size: 1rem;
+  font-size: 1em;
   border-radius: 4px;
   text-decoration: none;
   transform: scale(1);
@@ -194,3 +195,6 @@ input[type="submit"]:hover {
   box-shadow: var(--box-shadow);
 }
 
+a, a:link {
+  color: var(--text-color);
+}
