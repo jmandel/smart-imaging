@@ -1,3 +1,9 @@
+# Introduction
+
+The SMART Imaging project aims to provide a unified solution for accessing imaging studies alongside clinical data using a single authorization flow. This enables patients to have better access to their data, facilitates second opinions, streamlines data donations for research, and supports providers in their analysis with preferred tools and specialty-specific viewers.
+
+This project builds upon the existing Sync for Science (S4S) Imaging Specs, which were developed by the SMART team for the NIH All of Us program. It seeks to refine and implement these specifications and integrate them with the SMART on FHIR authorization, token introspection, and clinical APIs.
+
 # Getting Started
 
 Try the SMART Imaging Demo Stack live at;
@@ -6,6 +12,17 @@ Try the SMART Imaging Demo Stack live at;
 
 * https://imaging.argo.run/smart-sandbox/fhir/ImagingStudy is a SMART on FHIR FHIR Imaging endpoint. Note that `smart-sandbox` can be replaced with other configuration keys to change server behavior. See <a href="#config">config section</a> below.
 
+Prerequisites
+
+To work with the SMART Imaging project, you should have the following prerequisites:
+
+* Knowledge of SMART on FHIR, OAuth, and token introspection
+
+* Familiarity with FHIR and DICOM standards 
+
+ 
+
+ 
 
 # Understanding the SMRAT Imaging Demo Stack
 
@@ -41,6 +58,27 @@ Pre-specified configurations are controlled by files in [`./server/config`](./se
 ### Dynamic Configuration (`https://imaging.argo.run/dyn/:encoded/fhir`) 
 
 Dynamic configurations are useful when you want to get started testing SMART Imaging with your own EHR's authorization server. You can rapidly iterate on your config settings until you get something that works. These paths start with  `/dyn/:encoded`, where the variable component is `base64urlencode(JSON.stringify(config))`. For example, you might test out configurations dynamically until you're happy with the behavior; then you might email a few colleagues your base URL so they can test things out, and eventually you might submit a PR to this repository so a wider audience can reproduce this behavior.
+
+#Contributing
+
+We welcome contributions from the community to help improve and expand the SMART Imaging project. To contribute, follow these guidelines:
+
+1. Fork the repository and create a new branch for your feature or bugfix.
+
+2. Develop your changes, ensuring that you follow the existing code style and best practices.
+
+3. Test your changes thoroughly and verify that they work correctly.
+
+4. Submit a pull request, detailing the changes you've made and their purpose.
+
+# License and Credits
+
+This project is licensed under the Apache License, Version 2.0. Credits for third-party libraries and resources used in the project can be found in the NOTICE file.
+
+
+# Support and Contact Information
+
+If you have questions, need assistance, or want to provide feedback on the SMART Imaging project, please visit #argonaut on https://chat.fhir.org, or open an issue in this repository.
 
 ---
   
