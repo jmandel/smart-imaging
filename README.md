@@ -72,7 +72,7 @@ Dynamic configurations are useful when you want to get started testing SMART Ima
 
 5. **Docker**: A platform for developing, shipping, and running applications in containers, enabling consistent environments and easier deployment. Find more information at the [Docker website](https://www.docker.com/)
 
-#Contributing
+# Contributing
 
 We welcome contributions from the community to help improve and expand the SMART Imaging project. To contribute, follow these guidelines:
 
