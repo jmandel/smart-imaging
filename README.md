@@ -2,7 +2,28 @@
 
 The SMART Imaging project aims to provide a unified solution for accessing imaging studies alongside clinical data using a single authorization flow. This enables patients to have better access to their data, facilitates second opinions, streamlines data donations for research, and supports providers in their analysis with preferred tools and specialty-specific viewers.
 
-This project builds upon the existing Sync for Science (S4S) Imaging Specs, which were developed by the SMART team for the NIH All of Us program. It seeks to refine and implement these specifications and integrate them with the SMART on FHIR authorization, token introspection, and clinical APIs.
+This project builds on the Sync for Science (S4S) Imaging Specs, which were developed by the SMART team for the NIH All of Us program. It seeks to refine and implement these specifications and integrate them with the SMART on FHIR authorization, token introspection, and clinical APIs.
+
+### Mind map of key concepts
+
+```mermaid
+mindmap
+  root((SMART Imaging Access))
+    SMART on FHIR EHR
+      Authorization
+      Token Introspection
+      US Core FHIR
+    Imaging Server
+      ImagingStudy FHIR
+      WADO /studies/:id
+    App Workflow
+      Authorize
+      Query FHIR
+        Clinical Endpoint
+        Imaging Endpoint
+      Retrieve Images
+        DICOM Data
+```
 
 # Getting Started
 
