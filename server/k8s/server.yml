@@ -73,3 +73,4 @@ metadata:
   namespace: smart-imaging-access
 data:
   BASE_URL: https://imaging.argo.run
+  LOCAL_STACK_CONFIG: ""

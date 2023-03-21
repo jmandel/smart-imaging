@@ -21,32 +21,27 @@ for (const f of Deno.readDirSync("config")) {
 }
 
 const multiTenantRouter = new Router<AppState>();
-multiTenantRouter.all(
-  "/:dyn(dyn)?/:tenant/(fhir|wado)/(.*)",
-  async (ctx, next) => {
-    const tenantKey = ctx.params.tenant;
-    let tenant;
-    if (ctx.params.dyn) {
-      tenant = JSON.parse(
-        new TextDecoder().decode(jose.base64url.decode(tenantKey)),
-      );
-    } else {
-      tenant = tenantConfig.get(tenantKey);
-    }
-    const authzForTenant = Introspection.create(tenant.authorization);
-    const { patient, introspected } = await authzForTenant.assignAuthorization(ctx);
+multiTenantRouter.all("/:dyn(dyn)?/:tenant/(fhir|wado)/(.*)", async (ctx, next) => {
+  const tenantKey = ctx.params.tenant;
+  let tenant;
+  if (ctx.params.dyn) {
+    tenant = JSON.parse(new TextDecoder().decode(jose.base64url.decode(tenantKey)));
+  } else {
+    tenant = tenantConfig.get(tenantKey);
+  }
+  const authzForTenant = Introspection.create(tenant.authorization);
+  const { patient, introspected } = await authzForTenant.assignAuthorization(ctx);
 
-    ctx.state.authorizedForPatient = patient;
-    ctx.state.introspected = introspected;
-    const reqBase = baseUrl;
-    ctx.state.imagesProvider = new DicomProvider(
-      tenant.images,
-      reqBase + (ctx.params.dyn ? `/dyn/${ctx.params.dyn}` : ``) + `/${ctx.params.tenant}/wado`,
-    );
-    console.log(ctx.state.imagesProvider.wadoBase);
-    await next();
-  },
-);
+  ctx.state.authorizedForPatient = patient;
+  ctx.state.introspected = introspected;
+  const reqBase = baseUrl;
+  ctx.state.imagesProvider = new DicomProvider(
+    tenant.images,
+    reqBase + (ctx.params.dyn ? `/dyn/${ctx.params.dyn}` : ``) + `/${ctx.params.tenant}/wado`,
+  );
+  console.log(ctx.state.imagesProvider.wadoBase);
+  await next();
+});
 
 app.use(async (ctx, next) => {
   try {
@@ -57,6 +52,14 @@ app.use(async (ctx, next) => {
     ctx.response.body = e.toString();
   }
 });
+
+app.use(
+  new Router()
+    .get("/", (ctx) => {
+      ctx.response.redirect("https://github.com/jmandel/smart-imaging#getting-started");
+    })
+    .routes(),
+);
 
 multiTenantRouter.use("/:dyn(dyn)?/:tenant/fhir", fhirRouter.routes());
 multiTenantRouter.use("/:dyn(dyn)?/:tenant/wado", wadoRouter.routes());
