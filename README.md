@@ -18,8 +18,8 @@ See [`./viewer`](./viewer).
 This app connects a SMART on FHIR clinical data server (e.g., an EHR sandbox) as well as an imaging erver (e.g., our Reference Imaging Server). After authorization, it retreives data from both. 
 
 
-## Reference Imaging Server (FHIR + DICOM)
 <a id="config"></a>
+## Reference Imaging Server (FHIR + DICOM)
 
 See [`./server`](./server).
 
