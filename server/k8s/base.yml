@@ -137,17 +137,23 @@ spec:
         - /bin/bash
         - -c
         - >
-          cd examples;
-          ./wait-for-server.sh;
-          ./load-examples.sh;
-          cd ..;
           deno run $LOCAL_STACK_CONFIG --allow-all src/index.ts;
-      - name: launcher
-        image: argonautcontainerregistry.azurecr.io/smartonfhir/smart-launcher-2:latest
+      - name: sample-loader
+        image: argonautcontainerregistry.azurecr.io/imaging-proxy:latest
         imagePullPolicy: IfNotPresent
-        ports:
-        - containerPort: 80
-          name: launcher-web
+        env:
+        - name: BASE_URL
+          value: "http://orthanc"
+        - name: ORTHANC_USERNAME
+          value: "argonaut"
+        - name: ORTHANC_PASSWORD
+          value: "argonaut"
+        args:
+        - /bin/bash
+        - -c
+        - >
+          cd examples;
+          deno run --allow-all load-examples.ts --wait-for-dicom-server
 ---
 apiVersion: v1
 kind: Service
@@ -162,6 +168,40 @@ spec:
     protocol: TCP
     port: 8000
     targetPort: proxy
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: launcher
+  namespace: smart-imaging-access
+spec:
+  selector:
+    matchLabels:
+      app: launcher
+  replicas: 1
+  template:
+    metadata:
+      namespace: smart-imaging-access
+      labels:
+        app: launcher
+    spec:
+      containers:
+      - name: launcher
+        image: argonautcontainerregistry.azurecr.io/smartonfhir/smart-launcher-2:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 80
+          name: launcher-web
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: launcher
+  namespace: smart-imaging-access
+spec:
+  selector:
+    app: launcher
+  ports:
   - name: launcher
     protocol: TCP
     port: 80

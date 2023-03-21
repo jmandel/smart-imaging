@@ -16,7 +16,7 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: reference
+                name: launcher
                 port:
                   number: 80
 ---

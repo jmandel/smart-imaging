@@ -1,0 +1,28 @@
+{
+  "resourceType": "Patient",
+  "identifier": [
+    {
+      "type": {
+        "coding": [
+          {
+            "system": "http://terminology.hl7.org/CodeSystem/v2-0203",
+            "code": "MR",
+            "display": "Medical Record Number"
+          }
+        ],
+        "text": "Medical Record Number"
+      },
+      "system": "http://hospital.smarthealthit.org",
+      "value": "293ee354-f8ad-4345-b10c-759fdfdcc082"
+    }
+  ],
+  "name": [
+    {
+      "use": "official",
+      "family": "Kshlerin",
+      "given": ["Danae"],
+      "prefix": ["Mrs."]
+    }
+  ],
+  "birthDate": "1964-05-13"
+}

@@ -1,6 +1,6 @@
 FROM denoland/deno:ubuntu-1.31.2
 RUN apt-get update && \
-  apt-get install -y wget
+  apt-get install -y wget dcmtk
 EXPOSE 8000
 WORKDIR /app
 USER deno

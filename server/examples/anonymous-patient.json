@@ -1,0 +1,26 @@
+{
+  "resourceType": "Patient",
+  "identifier": [
+    {
+      "type": {
+        "coding": [
+          {
+            "system": "http://terminology.hl7.org/CodeSystem/v2-0203",
+            "code": "MR",
+            "display": "Medical Record Number"
+          }
+        ],
+        "text": "Medical Record Number"
+      },
+      "system": "http://anonymous.example.org",
+      "value": "anonymous-example-patient-id"
+    }
+  ],
+  "name": [
+    {
+      "family": "Anonymous",
+      "given": ["Anonymous"]
+    }
+  ],
+  "birthDate": "2000-01-01"
+}
