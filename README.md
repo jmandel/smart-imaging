@@ -4,7 +4,7 @@ If you want to check out SMART Imaging Demo Stack, you can see it live at:
 
 * https://imaging-app.argo.run is a Demo SMART Imaging App that can connect to any SMART on FHIR Clinical + Imaging endpoints.
 
-* https://imaging.argo.run/smart-sandbox/fhir/ImagingStudy is a SMART on FHIR FHIR Imaging endpoint. This `/smart-sandbox` configuration is backed by [`./server/config/smart-sandbox.json`](./server/config/smart-sandbox.json), which means that it will introspect access tokens against SMART's sandbox authorization server, so clients must use https://launch.smarthealthit.org to get an access token before making imaging requests. Note that `smart-sandbox` can be replaced with other configuration keys to change server behavior. See <a href="config">config section</a> below.
+* https://imaging.argo.run/smart-sandbox/fhir/ImagingStudy is a SMART on FHIR FHIR Imaging endpoint. Note that `smart-sandbox` can be replaced with other configuration keys to change server behavior. See <a href="#config">config section</a> below.
 
 
 # Understanding the SMRAT Imaging Demo Stack
@@ -23,14 +23,26 @@ This app connects a SMART on FHIR clinical data server (e.g., an EHR sandbox) as
 
 See [`./server`](./server).
 
-The Imaging Server is designed for flexibility in testing and development. It can be configured at runtime through 
+The Imaging Server is designed for flexibility in testing and development. It can be configured at runtime through configuration keys or with dynamic values.
 
-* configuration files (see `server/config` for our commonly used, publicly available configurations), or
-* dynamic path components (useful if you want to try out SMART Imaging with your own EHR's authorization server, for example).  These look like `/dyn/:config`, where the variable component is `base64urlencode(JSON.stringify(config))`. This saves you a step if you want to iterate on a server config without submitting PRs to this repository, and without hosting your own copy of the Reference Imaging Server.
+### Flexible Behaviors
 
-Through configuration, the Reference Imaging Server depends on two key components:
+The Reference Imaging Server can allow for testing SMART Imaging with many different servers. A complete configuration will provide two key components:
+
 * Authorization server. Typically this will be an EHR's existing SMART on FHIR server (e.g., an EHR's sandbox authz server).
 * Image source. Typically this will be a DICOM Web server that supports some kind of private authentication, but it could be something simpler like a folder full of test images in a demo environmnet. Anything that can recive a Patient and output a set of DICOM metadata + images.
+
+### Pre-specified configurations (`https://imaging.argo.run/:key/fhir`) 
+
+Pre-specified configurations are controlled by files in [`./server/config`](./server/config). They can change the behavior of the server to help you test out specific scenarios. For example:
+
+  * `/smart-sandbox` configuration is backed by [`./server/config/smart-sandbox.json`](./server/config/smart-sandbox.json), which means that it will introspect access tokens against SMART's sandbox authorization server, so clients must use https://launch.smarthealthit.org to get an access token before making imaging requests.
+  * `/open` configuration is backed by [`./server/config/open.json`](./server/config/open.json), which means that it will ignore access tokens entirely an just use a hard-coded introspection response (very handy for debugging).
+  * For other keys, see [`./server/config`](./server/config)
+
+### Dynamic Configuration (`https://imaging.argo.run/dyn/:encoded/fhir`) 
+
+Dynamic configurations are useful when you want to get started testing SMART Imaging with your own EHR's authorization server. You can rapidly iterate on your config settings until you get something that works. These paths start with  `/dyn/:encoded`, where the variable component is `base64urlencode(JSON.stringify(config))`. For example, you might test out configurations dynamically until you're happy with the behavior; then you might email a few colleagues your base URL so they can test things out, and eventually you might submit a PR to this repository so a wider audience can reproduce this behavior.
 
 
 ---
