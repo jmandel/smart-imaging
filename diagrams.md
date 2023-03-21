@@ -1,7 +1,7 @@
 
 ```mermaid
 mindmap
-  root((Imaging Access))
+  root((SMART Imaging Access))
     SMART on FHIR EHR
       Authorization
       Token Introspection
