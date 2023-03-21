@@ -3,8 +3,8 @@ on:
   push:
     branches:
     - main
-    paths-ignore:
-    - 'viewer/**'
+    path:
+    - 'server/**'
 
 jobs:
   build:
@@ -24,6 +24,7 @@ jobs:
         cluster-name: ${{ secrets.CLUSTER_NAME }}
         resource-group: ${{ secrets.RESOURCE_GROUP }}
     - name: Build and rollout to CI
+      working-directory: ./server
       run: |
         docker build . \
           -t ${{ secrets.CONTAINER_REGISTRY }}/imaging-proxy:$GITHUB_SHA \

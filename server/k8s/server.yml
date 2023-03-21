@@ -28,13 +28,36 @@ spec:
                 name: orthanc
                 port:
                   number: 8042
-          - path: "/img(/|$)?(.*)"
+          - path: "/($)?(.*)"
             pathType: Prefix
             backend:
               service:
                 name: reference
                 port:
                   number: 8000
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  namespace: smart-imaging-access
+  name: launcher
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      rewrite ^(/orthanc)$ /orthanc/ redirect;
+spec:
+  tls:
+  - hosts:
+    - launcher.imaging.argo.run
+    secretName: tls-secret-launcher
+  rules:
+    - host: launcher.imaging.argo.run
+      http:
+        paths:
           - path: "/($)?(.*)"
             pathType: Prefix
             backend:
@@ -49,4 +72,4 @@ metadata:
   name: proxy-config
   namespace: smart-imaging-access
 data:
-  BASE_URL: https://imaging.argo.run/img
+  BASE_URL: https://imaging.argo.run

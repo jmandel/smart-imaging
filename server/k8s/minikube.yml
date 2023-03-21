@@ -2,6 +2,28 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   namespace: smart-imaging-access
+  name: launcher
+  annotations:
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+spec:
+  rules:
+    - host: launcher.imaging-local.argo.run
+      http:
+        paths:
+          - path: "/($)?(.*)"
+            pathType: Prefix
+            backend:
+              service:
+                name: reference
+                port:
+                  number: 80
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  namespace: smart-imaging-access
   name: reference
   annotations:
     nginx.ingress.kubernetes.io/enable-cors: "true"
@@ -12,7 +34,8 @@ metadata:
       rewrite ^(/orthanc)$ /orthanc/ redirect;
 spec:
   rules:
-    - http:
+    - host: imaging-local.argo.run
+      http:
         paths:
           - path: "/orthanc(/|$)?(.*)"
             pathType: Prefix
@@ -21,20 +44,13 @@ spec:
                 name: orthanc
                 port:
                   number: 8042
-          - path: "/img(/|$)?(.*)"
-            pathType: Prefix
-            backend:
-              service:
-                name: reference
-                port:
-                  number: 8000
           - path: "/($)?(.*)"
             pathType: Prefix
             backend:
               service:
                 name: reference
                 port:
-                  number: 80
+                  number: 8000
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -42,4 +58,5 @@ metadata:
   name: proxy-config
   namespace: smart-imaging-access
 data:
-  BASE_URL: https://imaging-local.argo.run/img
+  BASE_URL: https://imaging-local.argo.run
+  LOCAL_STACK_CONFIG: --unsafely-ignore-certificate-errors

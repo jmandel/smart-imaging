@@ -42,13 +42,14 @@ Through configuration, the Reference Imaging Server depends on two key component
 
 ```
 minikube start
-mkcert -install  "*.argo.run"
+mkcert -install  "*.imaging-local.argo.run" "imaging-local.argo.run"
 kubectl -n kube-system create secret tls mkcert \
     --key _wildcard.argo.run-key.pem \
     --cert _wildcard.argo.run.pem
 minikube addons configure ingress # enter 'kube-system/mkcert'
 minikube addons enable ingress
 echo $(minikube ip)    imaging-local.argo.run | sudo tee -a /etc/hosts
+echo $(minikube ip)    launcher.imaging-local.argo.run | sudo tee -a /etc/hosts
 eval $(minikube -p minikube docker-env)
 
 git clone https://github.com/smart-on-fhir/smart-launcher-v2

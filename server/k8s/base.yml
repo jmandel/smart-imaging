@@ -125,6 +125,11 @@ spec:
             configMapKeyRef:
               name: proxy-config
               key: BASE_URL
+        - name: LOCAL_STACK_CONFIG
+          valueFrom:
+            configMapKeyRef:
+              name: proxy-config
+              key: LOCAL_STACK_CONFIG
         ports:
         - containerPort: 8000
           name: proxy
@@ -136,7 +141,7 @@ spec:
           ./wait-for-server.sh;
           ./load-examples.sh;
           cd ..;
-          deno run --allow-all src/index.ts;
+          deno run $LOCAL_STACK_CONFIG --allow-all src/index.ts;
       - name: launcher
         image: argonautcontainerregistry.azurecr.io/smartonfhir/smart-launcher-2:latest
         imagePullPolicy: IfNotPresent

@@ -10,21 +10,18 @@
 
   import { create as createClient, type Client, type ClientConfig } from "./lib/smart";
 
-  let clientConfig: ClientConfig = {
-    clientId: "imaging-app",
-    iss: "https://imaging.argo.run/v/r4/sim/WzIsIjg3YTMzOWQwLThjYWUtNDE4ZS04OWM3LTg2NTFlNmFhYjNjNiIsIiIsIkFVVE8iLDAsMCwwLCIiLCIiLCIiLCIiLCIiLCIiLCIiLDAsMV0/fhir",
-    scope: "launch/patient patient/*.rs",
-    imagingServer: "https://imaging.argo.run/img/open/fhir",
-  };
-  const { client, authorize } = createClient(clientConfig);
+  import serverConfig from "./config/servers.json";
+  const serverConfigKey = new URLSearchParams(window.location.search).get("config") || "default";
+  let clientConfig: ClientConfig = serverConfig[serverConfigKey];
 
+  const { client, authorize } = createClient(clientConfig);
   let imagingStudies: StudyToFetch[] = [];
   async function fetchPatient(client: Client) {
     try {
       const patient = await client.patient.read();
       console.log("Patient", patient);
     } catch {
-      console.log("Could not fetch patient; destroying client")
+      console.log("Could not fetch patient; destroying client");
       $client = null;
     }
     const images = await client.images();
@@ -66,7 +63,7 @@
   $: {
     if ($client) {
       fetchPatient($client);
-      window.c = $client
+      window.c = $client;
     }
   }
 
@@ -207,7 +204,9 @@
     Demo
   </h1>
   <nav class="nav-links">
-    <div style="display: flex; gap: .5rem; align-items: center">Settings<span class="material-icons">settings</span></div>
+    <div style="display: flex; gap: .5rem; align-items: center">
+      Settings<span class="material-icons">settings</span>
+    </div>
   </nav>
 </div>
 

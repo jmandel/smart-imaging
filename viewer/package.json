@@ -19,6 +19,7 @@
     "vite": "^4.2.0"
   },
   "dependencies": {
+    "@types/lodash": "^4.14.191",
     "cornerstone-core": "^2.6.1",
     "cornerstone-math": "^0.1.10",
     "cornerstone-tools": "^6.0.8",
