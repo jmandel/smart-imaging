@@ -20,11 +20,12 @@ To work with the SMART Imaging project, you should have the following prerequisi
 
 * Familiarity with FHIR and DICOM standards 
 
- 
+
 
  
 
 # Understanding the SMRAT Imaging Demo Stack
+
 
 The SMART Imaging demo stack includes two main components:
 
@@ -58,6 +59,18 @@ Pre-specified configurations are controlled by files in [`./server/config`](./se
 ### Dynamic Configuration (`https://imaging.argo.run/dyn/:encoded/fhir`) 
 
 Dynamic configurations are useful when you want to get started testing SMART Imaging with your own EHR's authorization server. You can rapidly iterate on your config settings until you get something that works. These paths start with  `/dyn/:encoded`, where the variable component is `base64urlencode(JSON.stringify(config))`. For example, you might test out configurations dynamically until you're happy with the behavior; then you might email a few colleagues your base URL so they can test things out, and eventually you might submit a PR to this repository so a wider audience can reproduce this behavior.
+
+## Technologies under the hood
+
+1. **TypeScript**: A superset of JavaScript that adds static typing, enabling better tooling and improved code quality. Find more information at the [TypeScript website](https://www.typescriptlang.org/)
+
+2. **Deno**: A secure runtime for JavaScript and TypeScript, built with V8, Rust, and Tokio. Learn more at the [Deno website](https://deno.land/)
+
+3. **Svelte**: A modern, lightweight, and component-based JavaScript framework for building user interfaces. Explore more at the [Svelte website](https://svelte.dev/)
+
+4. **Minikube**: A tool that runs a single-node Kubernetes cluster locally, making it easy to learn and develop for Kubernetes. Check out the [Minikube GitHub repository](https://github.com/kubernetes/minikube) for more details.
+
+5. **Docker**: A platform for developing, shipping, and running applications in containers, enabling consistent environments and easier deployment. Find more information at the [Docker website](https://www.docker.com/)
 
 #Contributing
 
