@@ -33,19 +33,18 @@ Try the SMART Imaging Demo Stack live at;
 
 * https://imaging.argo.run/smart-sandbox/fhir/ImagingStudy is a SMART on FHIR FHIR Imaging endpoint. Note that `smart-sandbox` can be replaced with other configuration keys to change server behavior. See <a href="#config">config section</a> below.
 
-Prerequisites
+## Prerequisites
 
 To work with the SMART Imaging project, you should have the following prerequisites:
 
-* Knowledge of SMART on FHIR, OAuth, and token introspection
+* Knowledge of [SMART, OAuth2, and token introspection](https://hl7.org/fhir/smart-app-launch/)
 
-* Familiarity with FHIR and DICOM standards 
-
+* Familiarity with [FHIR](https://hl7.org/fhir/) and [DICOM](https://www.dicomstandard.org/current) standards 
 
 
  
 
-# Understanding the SMRAT Imaging Demo Stack
+# Understanding the SMART Imaging Demo Stack
 
 
 The SMART Imaging demo stack includes two main components:
@@ -54,7 +53,7 @@ The SMART Imaging demo stack includes two main components:
 
 See [`./viewer`](./viewer).
 
-This app connects a SMART on FHIR clinical data server (e.g., an EHR sandbox) as well as an imaging erver (e.g., our Reference Imaging Server). After authorization, it retreives data from both. 
+This app connects a SMART on FHIR clinical data server (e.g., an EHR sandbox) as well as an imaging erver (e.g., our Reference Imaging Server). After authorization, it retrieves data from both. 
 
 
 <a id="config"></a>
@@ -81,17 +80,47 @@ Pre-specified configurations are controlled by files in [`./server/config`](./se
 
 Dynamic configurations are useful when you want to get started testing SMART Imaging with your own EHR's authorization server. You can rapidly iterate on your config settings until you get something that works. These paths start with  `/dyn/:encoded`, where the variable component is `base64urlencode(JSON.stringify(config))`. For example, you might test out configurations dynamically until you're happy with the behavior; then you might email a few colleagues your base URL so they can test things out, and eventually you might submit a PR to this repository so a wider audience can reproduce this behavior.
 
+#### Example of `/dyn/:encoded`
+
+Here's an example of how to encode your config settings. (You can try this yourself in a [Deno REPL](https://deno.land/manual/getting_started/installation).)
+```
+import {encode} from "https://deno.land/std@0.179.0/encoding/base64url.ts";
+
+const ex = {
+  "authorization": {
+    "type": "fake-authorization",
+    "ignorePatient": true,
+  },
+  "images": {
+    "type": "dicom-web",
+    "lookup":  "all-studies-on-server",
+    "endpoint": "https://myserver.example.org/dicom-web",
+    "authentication": {
+      "type": "http-basic",
+      "username": "argonaut",
+      "password": "argonaut"
+    }
+  }
+}
+console.log(encode(JSON.stringify(ex)))
+```
+
+This gives you an `encoded` value of:
+
+    eyJhdXRob3JpemF0aW9uIjp7InR5cGUiOiJmYWtlLWF1dGhvcml6YXRpb24iLCJpZ25vcmVQYXRpZW50Ijp0cnVlfSwiaW1hZ2VzIjp7InR5cGUiOiJkaWNvbS13ZWIiLCJsb29rdXAiOiJhbGwtc3R1ZGllcy1vbi1zZXJ2ZXIiLCJlbmRwb2ludCI6Imh0dHBzOi8vbXlzZXJ2ZXIuZXhhbXBsZS5vcmcvZGljb20td2ViIiwiYXV0aGVudGljYXRpb24iOnsidHlwZSI6Imh0dHAtYmFzaWMiLCJ1c2VybmFtZSI6ImFyZ29uYXV0IiwicGFzc3dvcmQiOiJhcmdvbmF1dCJ9fX0
+
+
 ## Technologies under the hood
 
-1. **TypeScript**: A superset of JavaScript that adds static typing, enabling better tooling and improved code quality. Find more information at the [TypeScript website](https://www.typescriptlang.org/)
+* **TypeScript**: A superset of JavaScript that adds static typing, enabling better tooling and improved code quality. Find more information at the [TypeScript website](https://www.typescriptlang.org/)
 
-2. **Deno**: A secure runtime for JavaScript and TypeScript, built with V8, Rust, and Tokio. Learn more at the [Deno website](https://deno.land/)
+* **Deno**: A secure runtime for JavaScript and TypeScript, built with V8, Rust, and Tokio. Learn more at the [Deno website](https://deno.land/)
 
-3. **Svelte**: A modern, lightweight, and component-based JavaScript framework for building user interfaces. Explore more at the [Svelte website](https://svelte.dev/)
+* **Svelte**: A modern, lightweight, and component-based JavaScript framework for building user interfaces. Explore more at the [Svelte website](https://svelte.dev/)
 
-4. **Minikube**: A tool that runs a single-node Kubernetes cluster locally, making it easy to learn and develop for Kubernetes. Check out the [Minikube GitHub repository](https://github.com/kubernetes/minikube) for more details.
+* **Minikube**: A tool that runs a single-node Kubernetes cluster locally, making it easy to learn and develop for Kubernetes. Check out the [Minikube GitHub repository](https://github.com/kubernetes/minikube) for more details.
 
-5. **Docker**: A platform for developing, shipping, and running applications in containers, enabling consistent environments and easier deployment. Find more information at the [Docker website](https://www.docker.com/)
+* **Docker**: A platform for developing, shipping, and running applications in containers, enabling consistent environments and easier deployment. Find more information at the [Docker website](https://www.docker.com/)
 
 # Contributing
 
@@ -117,6 +146,8 @@ If you have questions, need assistance, or want to provide feedback on the SMART
 ---
   
 # Development Setup with minikube
+
+This section provides a step-by-step guide for setting up the SMART Imaging project on your local machine using Minikube. Following these instructions will help you create a local development environment, which is essential for testing and making changes to the project before deploying it to a production environment.
 
 1. Install `minikube` locally (tested with version 1.29)
 2. Install `mkcert` locally (tested with 1.4.4)
@@ -154,11 +185,11 @@ kubectl apply -f k8s/base.yml -f k8s/minikube.yml
 
 ### Local API examples
 
-```
-curl https://imaging-local.argo.run/img/open/fhir/ImagingStudy?patient=Patient/87a339d0-8cae-418e-89c7-8651e6aab3c6
-```
+This `curl` command queries the SMART Imaging API for ImagingStudy resources associated with a specific patient (identified by their ID) and retrieves the data in the FHIR format. The API endpoint is in the `open` configuration, which means it does not require any access tokens for authentication, which is useful for debugging and development.
 
-
+```
+curl https://imaging-local.argo.run/open/fhir/ImagingStudy?patient=Patient/87a339d0-8cae-418e-89c7-8651e6aab3c6
+```
 
 ## After building new images
 
@@ -167,6 +198,8 @@ kubectl  -n smart-imaging-access rollout restart deployment reference
 ```
 
 # Deploying to hosted demo
+
+Deploying to a hosted demo into a public kubernetes cluster allows you to showcase the project to a wider audience, test its functionality in a production-like setting, and gather valuable user feedback for future improvements.
 
 ```
 kubectl apply -f k8s/base.yml k8s/server.yml
