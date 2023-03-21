@@ -13,7 +13,8 @@ interface IntrospectionConfigBase {
 
 type IntrospectionConfigFake = IntrospectionConfigBase & {
   type: "fake-authorization";
-  hardcodedPatient: Patient;
+  hardcodedPatient?: Patient;
+  ignorePatient?: boolean;
 };
 
 type IntrospectionConfig =
@@ -28,6 +29,13 @@ interface SmartConfiguration {
   token_endpoint: string;
   introspection_endpoint: string;
 }
+
+  interface AuthorizationAssignment {
+    patient?: Patient,
+    introspected?: IntrospectionResponse,
+    disableSecurity?: boolean
+  }
+
 
 export class Introspection {
   public cache: { smartConfiguration?: SmartConfiguration } = {};
@@ -150,7 +158,7 @@ export class Introspection {
     return { patient, introspected };
   }
 
-  async assignAuthorization(ctx: oak.Context<AppState>) {
+  async assignAuthorization(ctx: oak.Context<AppState>): Promise<AuthorizationAssignment> {
     const tokenToIntrospect = ctx.request.headers.get("authorization")?.split(/bearer /i)?.[1];
     if (!tokenToIntrospect) {
       throw "Cannot authorize without an access token";
@@ -188,11 +196,17 @@ export class IntrospectionFake extends Introspection {
 
   // deno-lint-ignore require-await
   async assignAuthorization(_ctx: oak.Context<AppState>) {
+    if (this.fakeConfig.ignorePatient) {
+      return {
+        disableSecurity: true
+      }
+    }
+
     return {
-      patient: this.fakeConfig.hardcodedPatient,
+      patient: this.fakeConfig.hardcodedPatient!,
       introspected: {
         active: true,
-        patient: this.fakeConfig.hardcodedPatient.id,
+        patient: this.fakeConfig.hardcodedPatient!.id,
         scope: "patient/ImagingStudy.rs",
       },
     };

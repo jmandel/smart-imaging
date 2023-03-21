@@ -5,10 +5,22 @@
     "scope": "launch/patient patient/*.rs",
     "imagingServer": "https://imaging.argo.run/open/fhir"
   },
-  "local": {
+  "smart-sandbox": {
+    "clientId": "imaging-app",
+    "iss": "https://launcher.imaging.argo.run/v/r4/sim/WzIsIjg3YTMzOWQwLThjYWUtNDE4ZS04OWM3LTg2NTFlNmFhYjNjNiIsIiIsIkFVVE8iLDAsMCwwLCIiLCIiLCIiLCIiLCIiLCIiLCIiLDAsMV0/fhir",
+    "scope": "launch/patient patient/*.rs",
+    "imagingServer": "https://imaging.argo.run/smart-sandbox/fhir"
+  },
+  "local-open": {
     "clientId": "imaging-app",
     "iss": "https://launcher.imaging-local.argo.run/v/r4/sim/WzIsIjg3YTMzOWQwLThjYWUtNDE4ZS04OWM3LTg2NTFlNmFhYjNjNiIsIiIsIkFVVE8iLDAsMCwwLCIiLCIiLCIiLCIiLCIiLCIiLCIiLDAsMV0/fhir",
     "scope": "launch/patient patient/*.rs",
     "imagingServer": "https://imaging-local.argo.run/open/fhir"
+  },
+  "local-sandbox": {
+    "clientId": "imaging-app",
+    "iss": "https://launcher.imaging-local.argo.run/v/r4/sim/WzIsIjg3YTMzOWQwLThjYWUtNDE4ZS04OWM3LTg2NTFlNmFhYjNjNiIsIiIsIkFVVE8iLDAsMCwwLCIiLCIiLCIiLCIiLCIiLCIiLCIiLDAsMV0/fhir",
+    "scope": "launch/patient patient/*.rs",
+    "imagingServer": "https://imaging-local.argo.run/smart-sandbox-local/fhir"
   }
 }

@@ -7,7 +7,11 @@ fhirRouter.all("/(.*)", async (ctx, next) => {
   if (patient?.startsWith("Patient/")) {
     patient = patient.split("Patient/")[1];
   }
-  if (!patient || patient !== ctx.state.authorizedForPatient.id) {
+
+  if (ctx.state.disableSecurity) {
+    return next()
+  }
+  if (!patient || patient !== ctx.state.authorizedForPatient!.id) {
     throw `Patient parameter is required and must match authz context`;
   }
   await next();

@@ -30,10 +30,13 @@ multiTenantRouter.all("/:dyn(dyn)?/:tenant/(fhir|wado)/(.*)", async (ctx, next) 
     tenant = tenantConfig.get(tenantKey);
   }
   const authzForTenant = Introspection.create(tenant.authorization);
-  const { patient, introspected } = await authzForTenant.assignAuthorization(ctx);
+  const { patient, introspected, disableSecurity } = await authzForTenant.assignAuthorization(ctx);
 
+  console.log("Set up config to", patient, introspected, disableSecurity)
+  ctx.state.disableSecurity = Boolean(disableSecurity);
   ctx.state.authorizedForPatient = patient;
   ctx.state.introspected = introspected;
+
   const reqBase = baseUrl;
   ctx.state.imagesProvider = new DicomProvider(
     tenant.images,

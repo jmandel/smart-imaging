@@ -5,7 +5,7 @@ const ephemeralKey = new Uint8Array(32);
 crypto.getRandomValues(ephemeralKey);
 
 const signatures: Map<string, string> = new Map();
-const signStudyUid = async (uid: string, patient: string) => {
+const signStudyUid = async (uid: string, patient?: string) => {
   const key = `${uid}|${patient}`;
   if (signatures.has(key)) {
     return signatures.get(key);
@@ -59,7 +59,7 @@ function formatDate(dateString: string, timeString?: string): string | undefined
 
 async function formatResource(
   q: QidoResponse[number],
-  patient: Patient,
+  patientId: string | undefined,
   wadoBase: string,
 ): Promise<FhirResponse["entry"][number]["resource"]> {
   const uid = q[TAGS.STUDY_UID].Value[0];
@@ -83,7 +83,7 @@ async function formatResource(
       {
         resourceType: "Endpoint",
         id: "e",
-        address: `${wadoBase}/${await signStudyUid(uid, patient.id)}`,
+        address: `${wadoBase}/${await signStudyUid(uid, patientId)}`,
         connectionType: {
           system: "http://terminology.hl7.org/CodeSystem/endpoint-connection-type",
           code: "dicom-wado-rs",
@@ -125,9 +125,9 @@ export class DicomProvider {
     return { headers, body: proxied.body! };
   }
 
-  async lookupStudies(patient: Patient): Promise<FhirResponse> {
+  async lookupStudies(patient?: Patient): Promise<FhirResponse> {
     let query = ``;
-    if (this.config.lookup === "studies-by-mrn") {
+    if (this.config.lookup === "studies-by-mrn" && patient) {
       const mrnIdentifier = patient.identifier.filter((i: Identifier) =>
         i?.type?.text?.match("Medical Record Number")
       );
@@ -146,7 +146,7 @@ export class DicomProvider {
     return {
       resourceType: "Bundle",
       entry: await Promise.all(
-        studies.map(async (q) => ({ resource: await formatResource(q, patient, this.wadoBase) })),
+        studies.map(async (q) => ({ resource: await formatResource(q, patient?.id, this.wadoBase) })),
       ),
     };
   }
@@ -169,8 +169,13 @@ export const wadoRouter = new Router<AppState>()
     const { uid, patient }: { uid: string; patient: string } = JSON.parse(
       new TextDecoder().decode(token.payload),
     );
-    if (patient !== ctx.state.authorizedForPatient.id) {
-      throw `Patient mismatch: ${patient} vs ${ctx.state.authorizedForPatient.id}`;
+
+    if (ctx.state.disableSecurity) {
+      return next()
+    }
+
+    if (patient !== ctx.state.authorizedForPatient!.id) {
+      throw `Patient mismatch: ${patient} vs ${ctx.state.authorizedForPatient!.id}`;
     }
     if (uid !== ctx.params.uid) {
       throw `Study uid mismatch: ${uid} vs ${ctx.params.uid}`;
