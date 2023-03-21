@@ -1,6 +1,6 @@
 # Getting Started
 
-If you want to check out SMART Imaging Demo Stack, you can see it live at:
+Try the SMART Imaging Demo Stack live at;
 
 * https://imaging-app.argo.run is a Demo SMART Imaging App that can connect to any SMART on FHIR Clinical + Imaging endpoints.
 
