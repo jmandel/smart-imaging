@@ -8,13 +8,8 @@
   import { parseMultipart } from "./multipart";
   import * as _ from "lodash";
 
-  import { create as createClient, type Client, type ClientConfig } from "./lib/smart";
+  import {authorize, client} from "./lib/smart";
 
-  import serverConfig from "./config/servers.json";
-  const serverConfigKey = new URLSearchParams(window.location.search).get("config") || "default";
-  let clientConfig: ClientConfig = serverConfig[serverConfigKey];
-
-  const { client, authorize } = createClient(clientConfig);
   let imagingStudies: StudyToFetch[] = [];
   async function fetchPatient(client: Client) {
     try {

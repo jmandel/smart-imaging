@@ -16,7 +16,6 @@ export type ClientConfig = ftypes.fhirclient.AuthorizeParams & {
 export function create(config: ClientConfig) {
   const client = writable<ModifiedClient>(null);
   const authorize = () => {
-    sessionStorage.setItem("imagingServer", config.imagingServer);
     fhirclient.oauth2.authorize(config);
   };
 
@@ -24,9 +23,7 @@ export function create(config: ClientConfig) {
     fhirclient.oauth2.ready().then((c) => {
       const cstate = c.state as typeof c.state & ClientConfig;
       (c as unknown as ModifiedClient).images = async function images() {
-        const ibundle = await c.request(
-          sessionStorage.getItem("imagingServer") + "/ImagingStudy?patient=" + cstate.tokenResponse.patient
-        );
+        const ibundle = await c.request(config.imagingServer + "/ImagingStudy?patient=" + cstate.tokenResponse.patient);
         return ibundle;
       };
       client.set(c as ModifiedClient);
@@ -34,3 +31,10 @@ export function create(config: ClientConfig) {
   } catch {}
   return { client, authorize };
 }
+
+import serverConfig from "../config/servers.json";
+const serverConfigKey =
+  new URLSearchParams(window.location.search).get("config") || sessionStorage.config || "smart-sandbox";
+sessionStorage.config = serverConfigKey;
+let clientConfig: ClientConfig = serverConfig[serverConfigKey];
+export const { client, authorize } = create(clientConfig);

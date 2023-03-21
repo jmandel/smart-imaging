@@ -1,5 +1,5 @@
 {
-  "default": {
+  "open": {
     "clientId": "imaging-app",
     "iss": "https://launcher.imaging.argo.run/v/r4/sim/WzIsIjg3YTMzOWQwLThjYWUtNDE4ZS04OWM3LTg2NTFlNmFhYjNjNiIsIiIsIkFVVE8iLDAsMCwwLCIiLCIiLCIiLCIiLCIiLCIiLCIiLDAsMV0/fhir",
     "scope": "launch/patient patient/*.rs",
