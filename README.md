@@ -2,9 +2,9 @@
 
 If you want to check out SMART Imaging Demo Stack, you can see it live at:
 
-* https://imaging-app.argo.run . Demo SMART App that connects to a SMART on FHIR Clinical + Imaging endpoints.
+* https://imaging-app.argo.run is a Demo SMART Imaging App that can connect to any SMART on FHIR Clinical + Imaging endpoints.
 
-* https://imaging.argo.run/img/smart-sandbox/fhir/ImagingStudy. FHIR Imaging endpoint. This configuration is backed a small set of imaging data and protected by SMART's sandbox authoirzation server, so clients will use https://launch.smarthealthit.org to get an access token before making imaging requests. Note that `smart-sandbox` can be replaced with another configuration key or with a dynamic config value to leverage a different SMART authorization server or image source.
+* https://imaging.argo.run/smart-sandbox/fhir/ImagingStudy is a SMART on FHIR FHIR Imaging endpoint. This `/smart-sandbox` configuration is backed by [`./server/config/smart-sandbox.json`](./server/config/smart-sandbox.json), which means that it will introspect access tokens against SMART's sandbox authorization server, so clients must use https://launch.smarthealthit.org to get an access token before making imaging requests. Note that `smart-sandbox` can be replaced with other configuration keys to change server behavior. See <a href="config">config section</a> below.
 
 
 # Understanding the SMRAT Imaging Demo Stack
@@ -13,14 +13,15 @@ The SMART Imaging demo stack includes two main components:
 
 ## Sample app
 
-See `viewer` folder.
+See [`./viewer`](./viewer).
 
 This app connects a SMART on FHIR clinical data server (e.g., an EHR sandbox) as well as an imaging erver (e.g., our Reference Imaging Server). After authorization, it retreives data from both. 
 
 
 ## Reference Imaging Server (FHIR + DICOM)
+<a id="config"></a>
 
-See `server` folder.
+See [`./server`](./server).
 
 The Imaging Server is designed for flexibility in testing and development. It can be configured at runtime through 
 
