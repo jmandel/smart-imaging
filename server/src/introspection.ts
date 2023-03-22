@@ -11,10 +11,10 @@ interface IntrospectionConfigBase {
   };
 }
 
-type IntrospectionConfigFake = IntrospectionConfigBase & {
-  type: "fake-authorization";
-  hardcodedPatient?: Patient;
-  ignorePatient?: boolean;
+type IntrospectionConfigMock = IntrospectionConfigBase & {
+  type: "mock";
+  patient?: Patient;
+  disabled?: boolean;
 };
 
 type IntrospectionConfig =
@@ -22,7 +22,7 @@ type IntrospectionConfig =
   & (
     | { type: "smart-on-fhir" }
     | { type: "smart-on-fhir-with-epic-bugfixes" }
-    | IntrospectionConfigFake
+    | IntrospectionConfigMock
   );
 
 interface SmartConfiguration {
@@ -42,8 +42,8 @@ export class Introspection {
   static create(config: IntrospectionConfig): Introspection {
     if (config.type === "smart-on-fhir-with-epic-bugfixes") {
       return new IntrospectionEpic(config);
-    } else if (config.type === "fake-authorization") {
-      return new IntrospectionFake(config);
+    } else if (config.type === "mock") {
+      return new IntrospectionMock(config);
     } else {
       return new Introspection(config);
     }
@@ -189,24 +189,24 @@ export class IntrospectionEpic extends Introspection {
   }
 }
 
-export class IntrospectionFake extends Introspection {
-  constructor(public fakeConfig: IntrospectionConfigFake) {
-    super(fakeConfig);
+export class IntrospectionMock extends Introspection {
+  constructor(public mockConfig: IntrospectionConfigMock) {
+    super(mockConfig);
   }
 
   // deno-lint-ignore require-await
   async assignAuthorization(_ctx: oak.Context<AppState>) {
-    if (this.fakeConfig.ignorePatient) {
+    if (this.mockConfig.disabled) {
       return {
         disableSecurity: true
       }
     }
 
     return {
-      patient: this.fakeConfig.hardcodedPatient!,
+      patient: this.mockConfig.patient!,
       introspected: {
         active: true,
-        patient: this.fakeConfig.hardcodedPatient!.id,
+        patient: this.mockConfig.patient!.id,
         scope: "patient/ImagingStudy.rs",
       },
     };

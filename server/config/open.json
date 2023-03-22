@@ -1,8 +1,7 @@
 {
   "authorization": {
-    "type": "fake-authorization",
-    "ignorePatient": true,
-    "hardcodedPatient": null
+    "type": "mock",
+    "disabled": true
   },
   "images": {
     "type": "dicom-web",

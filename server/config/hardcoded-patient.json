@@ -1,7 +1,7 @@
 {
   "authorization": {
-    "type": "fake-authorization",
-    "hardcodedPatient": {
+    "type": "mock",
+    "patient": {
       "resourceType": "Patient",
       "id": "87a339d0-8cae-418e-89c7-8651e6aab3c6",
       "identifier": [

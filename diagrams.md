@@ -15,8 +15,8 @@ flowchart TB
     RouteQuery --> DICOMQuery[DICOM Web]
 
     FHIRQuery --> CheckFHIRPatientBinding{Check ?patient=}
-    CheckFHIRPatientBinding -->|"<b>authorization.ignorePatient</b><br>false (default)"| EnsurePatientProperty[Ensure ?patient matches<br>resolved patient]
-    CheckFHIRPatientBinding -->|<b>authorization.ignorePatient</b><br>true| SkipPatientBindingCheck[Skip ?patient<br>binding check]
+    CheckFHIRPatientBinding -->|"<b>authorization.disabled</b><br>false (default)"| EnsurePatientProperty[Ensure ?patient matches<br>resolved patient]
+    CheckFHIRPatientBinding -->|<b>authorization.disabled</b><br>true| SkipPatientBindingCheck[Skip ?patient<br>binding check]
     EnsurePatientProperty --> RespondToFHIRQueries{Query<br>Image Source}
     SkipPatientBindingCheck --> RespondToFHIRQueries
     RespondToFHIRQueries -->|"<b>images.lookup</b><br><code>studies-by-context</code>"| PatientBinding[(Search Studies<br>by Patient ID)]
@@ -26,10 +26,10 @@ flowchart TB
     AllStudiesOnServer --> FHIRResponseComplete
 
     DICOMQuery --> CheckDICOMSessionBinding{Check<br><code>/wado/:studyToken</code>}
-    CheckDICOMSessionBinding -->|"<b>authorization.ignorePatient</b><br><code>false</code> (default)"|CheckSessionBindingToken[Ensure session binding token<br>valid and matches<br>resolved patient]
-    CheckDICOMSessionBinding -->|"<b>authorization.ignorePatient</b><br><code>true</code>"| SkipSessionBindingCheck[Skip session binding check]
-    CheckSessionBindingToken -->|Query with hardcoded patient ID| DICOMWebResponseGeneration[(Retrieve<br>DICOM Study)]
-    SkipSessionBindingCheck -->|Query with hardcoded patient ID| DICOMWebResponseGeneration
+    CheckDICOMSessionBinding -->|"<b>authorization.disabled</b><br><code>false</code> (default)"|CheckSessionBindingToken[Ensure session binding token<br>valid and matches<br>resolved patient]
+    CheckDICOMSessionBinding -->|"<b>authorization.disabled</b><br><code>true</code>"| SkipSessionBindingCheck[Skip session binding check]
+    CheckSessionBindingToken -->|Query with mock patient MRN| DICOMWebResponseGeneration[(Retrieve<br>DICOM Study)]
+    SkipSessionBindingCheck -->|Query with mock patient MRN| DICOMWebResponseGeneration
     DICOMWebResponseGeneration --> DICOMWebResponseComplete(((DICOM Web<br>Response Complete)))
 
 ```
