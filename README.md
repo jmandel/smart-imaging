@@ -68,6 +68,45 @@ The Reference Imaging Server allows for testing SMART Imaging with many differen
 * Authorization server. Typically this will be an EHR's existing SMART on FHIR server (e.g., an EHR's sandbox authz server).
 * Image source. Typically this will be a DICOM Web server that supports some kind of private authentication, but it could be something simpler like a folder full of test images in a demo environmnet. Anything that can recive a Patient and output a set of DICOM metadata + images.
 
+### Query Flow Through the Reference Imaging Server
+
+```mermaid
+flowchart TB
+    A[Begin Request] --> AccessTokenValidation{Validate Access Token}
+    AccessTokenValidation -->|<b>authorization.type</b><br>smart-on-fhir| TokenIntrospection((Token Introspection))
+    AccessTokenValidation -->|<b>authorization.type</b><br>mock| MockIntrospection((Mocked Introspection))
+    TokenIntrospection --> ResolvePatientContext{Resolve Patient Context}
+    MockIntrospection --> ResolvePatientContext
+    ResolvePatientContext -->|<b>authorization.type</b><br>smart-on-fhir| GetPatient((GET Patient/:id))
+    ResolvePatientContext -->|<b>authorization.type</b><br>mock| MockResolver((Mocked Patient))
+
+    GetPatient --> RouteQuery{Route Query}
+    MockResolver --> RouteQuery
+
+    RouteQuery --> FHIRQuery[FHIR]
+    RouteQuery --> DICOMQuery[DICOM Web]
+
+    FHIRQuery --> CheckFHIRPatientBinding{Check ?patient=}
+    CheckFHIRPatientBinding -->|"<b>authorization.disabled</b><br>false (default)"| EnsurePatientProperty[Ensure ?patient matches<br>resolved patient]
+    CheckFHIRPatientBinding -->|<b>authorization.disabled</b><br>true| SkipPatientBindingCheck[Skip ?patient<br>binding check]
+    EnsurePatientProperty --> RespondToFHIRQueries{Query<br>Image Source}
+    SkipPatientBindingCheck --> RespondToFHIRQueries
+    RespondToFHIRQueries -->|"<b>images.lookup</b><br><code>studies-by-mrn>"| PatientBinding[(Search Studies<br>by Patient ID)]
+    RespondToFHIRQueries -->|"<b>images.lookup</b><br><code>all-studies</code>"| AllStudiesOnServer[("Search Studies<br>(all)")]
+
+    PatientBinding --> FHIRResponseComplete(((FHIR<br>Response Complete)))
+    AllStudiesOnServer --> FHIRResponseComplete
+
+    DICOMQuery --> CheckDICOMSessionBinding{Check<br><code>/wado/:studyToken</code>}
+    CheckDICOMSessionBinding -->|"<b>authorization.disabled</b><br><code>false</code> (default)"|CheckSessionBindingToken[Ensure session binding token<br>valid and matches<br>resolved patient]
+    CheckDICOMSessionBinding -->|"<b>authorization.disabled</b><br><code>true</code>"| SkipSessionBindingCheck[Skip session binding check]
+    CheckSessionBindingToken --> DICOMWebResponseGeneration[(Retrieve<br>DICOM Study)]
+    SkipSessionBindingCheck --> DICOMWebResponseGeneration
+    DICOMWebResponseGeneration --> DICOMWebResponseComplete(((DICOM Web<br>Response Complete)))
+
+```
+
+
 ### Pre-specified configurations (`https://imaging.argo.run/:key/fhir`) 
 
 Pre-specified configurations are controlled by files in [`./server/config`](./server/config). They can change the behavior of the server to help you test out specific scenarios. For example:
@@ -108,44 +147,6 @@ console.log(encode(JSON.stringify(ex)))
 This gives you an `encoded` value of:
 
     eyJhdXRob3JpemF0aW9uIjp7InR5cGUiOiJtb2NrIiwiZGlzYWJsZWQiOnRydWV9LCJpbWFnZXMiOnsidHlwZSI6ImRpY29tLXdlYiIsImxvb2t1cCI6ImFsbC1zdHVkaWVzLW9uLXNlcnZlciIsImVuZHBvaW50IjoiaHR0cHM6Ly9teXNlcnZlci5leGFtcGxlLm9yZy9kaWNvbS13ZWIiLCJhdXRoZW50aWNhdGlvbiI6eyJ0eXBlIjoiaHR0cC1iYXNpYyIsInVzZXJuYW1lIjoiYXJnb25hdXQiLCJwYXNzd29yZCI6ImFyZ29uYXV0In19fQ
-
-## Query Flow Through Proxy
-
-```mermaid
-flowchart TB
-    A[Begin Request] --> AccessTokenValidation{Validate Access Token}
-    AccessTokenValidation -->|<b>authorization.type</b><br>smart-on-fhir| TokenIntrospection((Token Introspection))
-    AccessTokenValidation -->|<b>authorization.type</b><br>mock| MockIntrospection((Mocked Introspection))
-    TokenIntrospection --> ResolvePatientContext{Resolve Patient Context}
-    MockIntrospection --> ResolvePatientContext
-    ResolvePatientContext -->|<b>authorization.type</b><br>smart-on-fhir| GetPatient((GET Patient/:id))
-    ResolvePatientContext -->|<b>authorization.type</b><br>mock| MockResolver((Mocked Patient))
-
-    GetPatient --> RouteQuery{Route Query}
-    MockResolver --> RouteQuery
-
-    RouteQuery --> FHIRQuery[FHIR]
-    RouteQuery --> DICOMQuery[DICOM Web]
-
-    FHIRQuery --> CheckFHIRPatientBinding{Check ?patient=}
-    CheckFHIRPatientBinding -->|"<b>authorization.disabled</b><br>false (default)"| EnsurePatientProperty[Ensure ?patient matches<br>resolved patient]
-    CheckFHIRPatientBinding -->|<b>authorization.disabled</b><br>true| SkipPatientBindingCheck[Skip ?patient<br>binding check]
-    EnsurePatientProperty --> RespondToFHIRQueries{Query<br>Image Source}
-    SkipPatientBindingCheck --> RespondToFHIRQueries
-    RespondToFHIRQueries -->|"<b>images.lookup</b><br><code>studies-by-mrn>"| PatientBinding[(Search Studies<br>by Patient ID)]
-    RespondToFHIRQueries -->|"<b>images.lookup</b><br><code>all-studies</code>"| AllStudiesOnServer[("Search Studies<br>(all)")]
-
-    PatientBinding --> FHIRResponseComplete(((FHIR<br>Response Complete)))
-    AllStudiesOnServer --> FHIRResponseComplete
-
-    DICOMQuery --> CheckDICOMSessionBinding{Check<br><code>/wado/:studyToken</code>}
-    CheckDICOMSessionBinding -->|"<b>authorization.disabled</b><br><code>false</code> (default)"|CheckSessionBindingToken[Ensure session binding token<br>valid and matches<br>resolved patient]
-    CheckDICOMSessionBinding -->|"<b>authorization.disabled</b><br><code>true</code>"| SkipSessionBindingCheck[Skip session binding check]
-    CheckSessionBindingToken --> DICOMWebResponseGeneration[(Retrieve<br>DICOM Study)]
-    SkipSessionBindingCheck --> DICOMWebResponseGeneration
-    DICOMWebResponseGeneration --> DICOMWebResponseComplete(((DICOM Web<br>Response Complete)))
-
-```
 
 
 ## Technologies under the hood
