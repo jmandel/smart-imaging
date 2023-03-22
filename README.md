@@ -88,8 +88,8 @@ import {encode} from "https://deno.land/std@0.179.0/encoding/base64url.ts";
 
 const ex = {
   "authorization": {
-    "type": "fake-authorization",
-    "ignorePatient": true,
+    "type": "mock",
+    "disabled": true,
   },
   "images": {
     "type": "dicom-web",
@@ -107,7 +107,7 @@ console.log(encode(JSON.stringify(ex)))
 
 This gives you an `encoded` value of:
 
-    eyJhdXRob3JpemF0aW9uIjp7InR5cGUiOiJmYWtlLWF1dGhvcml6YXRpb24iLCJpZ25vcmVQYXRpZW50Ijp0cnVlfSwiaW1hZ2VzIjp7InR5cGUiOiJkaWNvbS13ZWIiLCJsb29rdXAiOiJhbGwtc3R1ZGllcy1vbi1zZXJ2ZXIiLCJlbmRwb2ludCI6Imh0dHBzOi8vbXlzZXJ2ZXIuZXhhbXBsZS5vcmcvZGljb20td2ViIiwiYXV0aGVudGljYXRpb24iOnsidHlwZSI6Imh0dHAtYmFzaWMiLCJ1c2VybmFtZSI6ImFyZ29uYXV0IiwicGFzc3dvcmQiOiJhcmdvbmF1dCJ9fX0
+    eyJhdXRob3JpemF0aW9uIjp7InR5cGUiOiJtb2NrIiwiZGlzYWJsZWQiOnRydWV9LCJpbWFnZXMiOnsidHlwZSI6ImRpY29tLXdlYiIsImxvb2t1cCI6ImFsbC1zdHVkaWVzLW9uLXNlcnZlciIsImVuZHBvaW50IjoiaHR0cHM6Ly9teXNlcnZlci5leGFtcGxlLm9yZy9kaWNvbS13ZWIiLCJhdXRoZW50aWNhdGlvbiI6eyJ0eXBlIjoiaHR0cC1iYXNpYyIsInVzZXJuYW1lIjoiYXJnb25hdXQiLCJwYXNzd29yZCI6ImFyZ29uYXV0In19fQ
 
 ## Query Flow Through Proxy
 
@@ -115,14 +115,14 @@ This gives you an `encoded` value of:
 flowchart TB
     A[Begin Request] --> AccessTokenValidation{Validate Access Token}
     AccessTokenValidation -->|<b>authorization.type</b><br>smart-on-fhir| TokenIntrospection((Token Introspection))
-    AccessTokenValidation -->|<b>authorization.type</b><br>mock| FakeIntrospection((Mocked Introspection))
+    AccessTokenValidation -->|<b>authorization.type</b><br>mock| MockIntrospection((Mocked Introspection))
     TokenIntrospection --> ResolvePatientContext{Resolve Patient Context}
-    FakeIntrospection --> ResolvePatientContext
+    MockIntrospection --> ResolvePatientContext
     ResolvePatientContext -->|<b>authorization.type</b><br>smart-on-fhir| GetPatient((GET Patient/:id))
-    ResolvePatientContext -->|<b>authorization.type</b><br>mock| FakeResolver((Mocked Patient))
+    ResolvePatientContext -->|<b>authorization.type</b><br>mock| MockResolver((Mocked Patient))
 
     GetPatient --> RouteQuery{Route Query}
-    FakeResolver --> RouteQuery
+    MockResolver --> RouteQuery
 
     RouteQuery --> FHIRQuery[FHIR]
     RouteQuery --> DICOMQuery[DICOM Web]
