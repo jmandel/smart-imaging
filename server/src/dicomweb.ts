@@ -71,6 +71,7 @@ async function formatResource(
     id: q[TAGS.STUDY_UID].Value[0],
     subject: {
       display: formatName(q[TAGS.PATIENT_NAME]?.Value?.[0]?.Alphabetic),
+      reference: patientId ? `Patient/${patientId}` : undefined
     },
     started: studyDateTime,
     referrer: {
