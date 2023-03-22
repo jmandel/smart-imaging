@@ -132,7 +132,7 @@ flowchart TB
     CheckFHIRPatientBinding -->|<b>authorization.disabled</b><br>true| SkipPatientBindingCheck[Skip ?patient<br>binding check]
     EnsurePatientProperty --> RespondToFHIRQueries{Query<br>Image Source}
     SkipPatientBindingCheck --> RespondToFHIRQueries
-    RespondToFHIRQueries -->|"<b>images.lookup</b><br><code>studies-by-context</code>"| PatientBinding[(Search Studies<br>by Patient ID)]
+    RespondToFHIRQueries -->|"<b>images.lookup</b><br><code>studies-by-mrn>"| PatientBinding[(Search Studies<br>by Patient ID)]
     RespondToFHIRQueries -->|"<b>images.lookup</b><br><code>all-studies</code>"| AllStudiesOnServer[("Search Studies<br>(all)")]
 
     PatientBinding --> FHIRResponseComplete(((FHIR<br>Response Complete)))
