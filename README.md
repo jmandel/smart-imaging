@@ -179,9 +179,9 @@ kubectl apply -f k8s/base.yml -f k8s/minikube.yml
 
 ## Access Services
 
-* Open https://imaging-local.argo.run for SMART Launcher
+* Open https://launcher.imaging-local.argo.run for SMART Launcher
 * Open https://imaging-local.argo.run/orthanc (argonaut/argonaut) for Orthanc instance underlying the demo
-* API at https://imaging-local.argo.run/img/smart-sandbox-local/fhir/ImagingStudy?patient= to query for imaging data
+* API at https://imaging-local.argo.run/open/fhir/ImagingStudy?patient= to query for imaging data
 
 ### Local API examples
 
