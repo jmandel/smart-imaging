@@ -1,4 +1,4 @@
-import { jose, Router } from "./deps.ts";
+import { jose, oak, Router } from "./deps.ts";
 import { AppState, FhirResponse, Identifier, Patient, QidoResponse, TAGS } from "./types.ts";
 
 const ephemeralKey = new Uint8Array(32);
@@ -41,9 +41,9 @@ interface DicomWebResult {
 export function formatName(name: string): string | undefined {
   const names = name
     ? name
-      .split("^")
-      .map((n) => n.trim())
-      .filter((n) => !!n)
+        .split("^")
+        .map((n) => n.trim())
+        .filter((n) => !!n)
     : undefined;
 
   return names ? names.slice(-1)[0] + " " + names.slice(0, -1).join(" ") : undefined;
@@ -61,7 +61,7 @@ export function formatDate(dateString: string, timeString?: string): string | un
 async function formatResource(
   q: QidoResponse[number],
   patientId: string | undefined,
-  wadoBase: string,
+  wadoBase: string
 ): Promise<FhirResponse["entry"][number]["resource"]> {
   const uid = q[TAGS.STUDY_UID].Value[0];
   const studyDateTime = formatDate(q[TAGS.STUDY_DATE].Value?.[0], q[TAGS.STUDY_TIME].Value?.[0]);
@@ -104,16 +104,13 @@ async function formatResource(
 export class DicomProvider {
   constructor(public config: DicomProviderConfig, public wadoBase: string) {}
   authHeader() {
-    return `Basic ${
-      btoa(`${this.config.authentication.username}:${this.config.authentication.password}`)
-    }`;
+    return `Basic ${btoa(`${this.config.authentication.username}:${this.config.authentication.password}`)}`;
   }
   async evaluateDicomWeb(path: string, reqHeaders: Headers): Promise<DicomWebResult> {
     const proxied = await fetch(`${this.config.endpoint}/studies/${path}`, {
       headers: {
         authorization: this.authHeader(),
-        accept: reqHeaders.get("accept") ||
-          `multipart/related; type=application/dicom; transfer-syntax=*`,
+        accept: reqHeaders.get("accept") || `multipart/related; type=application/dicom; transfer-syntax=*`,
       },
     });
     const headers: Record<string, string> = {};
@@ -129,9 +126,7 @@ export class DicomProvider {
   async lookupStudies(patient?: Patient): Promise<FhirResponse> {
     let query = ``;
     if (this.config.lookup === "studies-by-mrn" && patient) {
-      const mrnIdentifier = patient.identifier.filter((i: Identifier) =>
-        i?.type?.coding?.some((c) => c.code === "MR")
-      );
+      const mrnIdentifier = patient.identifier.filter((i: Identifier) => i?.type?.coding?.some((c) => c.code === "MR"));
       const mrn = mrnIdentifier[0].value;
       console.log("MRN", mrn);
       query = `PatientID=${mrn}`;
@@ -148,29 +143,30 @@ export class DicomProvider {
       entry: await Promise.all(
         studies.map(async (q) => ({
           resource: await formatResource(q, patient?.id, this.wadoBase),
-        })),
+        }))
       ),
     };
   }
 }
 
-const wadoInnerRouter = new Router<AppState>().get("/studies/:uid(.*)", async (ctx) => {
-  const { headers, body } = await ctx.state.imagesProvider.evaluateDicomWeb(
-    `${ctx.params.uid}`,
-    ctx.request.headers,
-  );
+const wadoStudyRetrieve = async (ctx: oak.RouterContext<"/studies/:uid(.*)", { [k: string]: string }, AppState>) => {
+  const { headers, body } = await ctx.state.imagesProvider.evaluateDicomWeb(`${ctx.params.uid}`, ctx.request.headers);
   Object.entries(headers).forEach(([k, v]) => {
     ctx.response.headers.set(k, v);
   });
   ctx.response.body = body;
-});
+};
+
+export const _internals = {
+  wadoStudyRetrieve,
+};
+
+const wadoInnerRouter = new Router<AppState>().get("/studies/:uid(.*)", (ctx) => _internals.wadoStudyRetrieve(ctx));
 
 export const wadoRouter = new Router<AppState>()
   .all("/:studyPatientBinding/studies/:uid/(.*)?", async (ctx, next) => {
     const token = await jose.compactVerify(ctx.params.studyPatientBinding, ephemeralKey);
-    const { uid, patient }: { uid: string; patient: string } = JSON.parse(
-      new TextDecoder().decode(token.payload),
-    );
+    const { uid, patient }: { uid: string; patient: string } = JSON.parse(new TextDecoder().decode(token.payload));
 
     if (ctx.state.disableAccessControl) {
       return next();
