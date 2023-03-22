@@ -30,12 +30,11 @@ interface SmartConfiguration {
   introspection_endpoint: string;
 }
 
-  interface AuthorizationAssignment {
-    patient?: Patient,
-    introspected?: IntrospectionResponse,
-    disableSecurity?: boolean
-  }
-
+interface AuthorizationAssignment {
+  patient?: Patient;
+  introspected?: IntrospectionResponse;
+  disableAccessControl?: boolean;
+}
 
 export class Introspection {
   public cache: { smartConfiguration?: SmartConfiguration } = {};
@@ -198,8 +197,8 @@ export class IntrospectionMock extends Introspection {
   async assignAuthorization(_ctx: oak.Context<AppState>) {
     if (this.mockConfig.disabled) {
       return {
-        disableSecurity: true
-      }
+        disableAccessControl: true,
+      };
     }
 
     return {

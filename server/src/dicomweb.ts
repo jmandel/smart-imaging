@@ -5,7 +5,7 @@ const ephemeralKey = new Uint8Array(32);
 crypto.getRandomValues(ephemeralKey);
 
 const signatures: Map<string, string> = new Map();
-const signStudyUid = async (uid: string, patient?: string) => {
+export const signStudyUid = async (uid: string, patient?: string) => {
   const key = `${uid}|${patient}`;
   if (signatures.has(key)) {
     return signatures.get(key);
@@ -22,7 +22,7 @@ const signStudyUid = async (uid: string, patient?: string) => {
   return ret;
 };
 
-type DicomProviderConfig = {
+export type DicomProviderConfig = {
   type: "dicom-web";
   lookup: "studies-by-mrn" | "all-studies-on-server";
   endpoint: string;
@@ -38,22 +38,23 @@ interface DicomWebResult {
   body: ReadableStream<Uint8Array>;
 }
 
-function formatName(name: string): string | undefined {
-  return name
+export function formatName(name: string): string | undefined {
+  const names = name
     ? name
       .split("^")
       .map((n) => n.trim())
       .filter((n) => !!n)
-      .join(" ")
     : undefined;
+
+  return names ? names.slice(-1)[0] + " " + names.slice(0, -1).join(" ") : undefined;
 }
 
-function formatDate(dateString: string, timeString?: string): string | undefined {
+export function formatDate(dateString: string, timeString?: string): string | undefined {
   if (!dateString) return undefined;
   const date = dateString.replace(/(\d{4})(\d{2})(\d{2})/, "$1-$2-$3");
-  if (!timeString) return new Date(date).toISOString();
+  if (!timeString) return new Date(date).toISOString().slice(0, 10);
 
-  const time = timeString.replace(/(\d{2})(\d{2})(\d{2})(\.\d{1,6})?/, "$1:$2:$3$4");
+  const time = timeString.replace(/(\d{2})(\d{2})(\d{2})(\.\d{1,6})?/, "$1:$2:$3$4Z");
   return new Date(`${date}T${time}`).toISOString();
 }
 
@@ -71,7 +72,7 @@ async function formatResource(
     id: q[TAGS.STUDY_UID].Value[0],
     subject: {
       display: formatName(q[TAGS.PATIENT_NAME]?.Value?.[0]?.Alphabetic),
-      reference: patientId ? `Patient/${patientId}` : undefined
+      reference: patientId ? `Patient/${patientId}` : undefined,
     },
     started: studyDateTime,
     referrer: {
@@ -117,7 +118,6 @@ export class DicomProvider {
     });
     const headers: Record<string, string> = {};
     headers["cache-control"] = "private, max-age=3600";
-    headers["ETag"] = `"123f"`;
     ["content-type", "content-length"].map((h) => {
       if (proxied.headers.get(h)) {
         headers[h] = proxied.headers.get(h)!;
@@ -130,24 +130,25 @@ export class DicomProvider {
     let query = ``;
     if (this.config.lookup === "studies-by-mrn" && patient) {
       const mrnIdentifier = patient.identifier.filter((i: Identifier) =>
-        i?.type?.text?.match("Medical Record Number")
+        i?.type?.coding?.some((c) => c.code === "MR")
       );
       const mrn = mrnIdentifier[0].value;
       console.log("MRN", mrn);
       query = `PatientID=${mrn}`;
     }
     const qido = new URL(`${this.config.endpoint}/studies?${query}`);
-    console.log("Q", qido);
+    // console.log("Q", qido);
     const studies: QidoResponse = await fetch(qido, {
       headers: {
         authorization: this.authHeader(),
       },
     }).then((q) => q.json());
-    console.log("Studies", studies);
     return {
       resourceType: "Bundle",
       entry: await Promise.all(
-        studies.map(async (q) => ({ resource: await formatResource(q, patient?.id, this.wadoBase) })),
+        studies.map(async (q) => ({
+          resource: await formatResource(q, patient?.id, this.wadoBase),
+        })),
       ),
     };
   }
@@ -171,8 +172,8 @@ export const wadoRouter = new Router<AppState>()
       new TextDecoder().decode(token.payload),
     );
 
-    if (ctx.state.disableSecurity) {
-      return next()
+    if (ctx.state.disableAccessControl) {
+      return next();
     }
 
     if (patient !== ctx.state.authorizedForPatient!.id) {

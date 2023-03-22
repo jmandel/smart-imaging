@@ -4,7 +4,7 @@ export interface AppState {
   authorizedForPatient?: Patient;
   introspected?: IntrospectionResponse;
   imagesProvider: DicomProvider;
-  disableSecurity: boolean;
+  disableAccessControl: boolean;
 }
 
 export interface IntrospectionResponse {
