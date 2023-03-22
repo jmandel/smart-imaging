@@ -109,6 +109,44 @@ This gives you an `encoded` value of:
 
     eyJhdXRob3JpemF0aW9uIjp7InR5cGUiOiJmYWtlLWF1dGhvcml6YXRpb24iLCJpZ25vcmVQYXRpZW50Ijp0cnVlfSwiaW1hZ2VzIjp7InR5cGUiOiJkaWNvbS13ZWIiLCJsb29rdXAiOiJhbGwtc3R1ZGllcy1vbi1zZXJ2ZXIiLCJlbmRwb2ludCI6Imh0dHBzOi8vbXlzZXJ2ZXIuZXhhbXBsZS5vcmcvZGljb20td2ViIiwiYXV0aGVudGljYXRpb24iOnsidHlwZSI6Imh0dHAtYmFzaWMiLCJ1c2VybmFtZSI6ImFyZ29uYXV0IiwicGFzc3dvcmQiOiJhcmdvbmF1dCJ9fX0
 
+## Query Flow Through Proxy
+
+```mermaid
+flowchart TB
+    A[Begin Request] --> AccessTokenValidation{Validate Access Token}
+    AccessTokenValidation -->|<b>authorization.type</b><br>smart-on-fhir| TokenIntrospection((Token Introspection))
+    AccessTokenValidation -->|<b>authorization.type</b><br>mock| FakeIntrospection((Mocked Introspection))
+    TokenIntrospection --> ResolvePatientContext{Resolve Patient Context}
+    FakeIntrospection --> ResolvePatientContext
+    ResolvePatientContext -->|<b>authorization.type</b><br>smart-on-fhir| GetPatient((GET Patient/:id))
+    ResolvePatientContext -->|<b>authorization.type</b><br>mock| FakeResolver((Mocked Patient))
+
+    GetPatient --> RouteQuery{Route Query}
+    FakeResolver --> RouteQuery
+
+    RouteQuery --> FHIRQuery[FHIR]
+    RouteQuery --> DICOMQuery[DICOM Web]
+
+    FHIRQuery --> CheckFHIRPatientBinding{Check ?patient=}
+    CheckFHIRPatientBinding -->|"<b>authorization.disabled</b><br>false (default)"| EnsurePatientProperty[Ensure ?patient matches<br>resolved patient]
+    CheckFHIRPatientBinding -->|<b>authorization.disabled</b><br>true| SkipPatientBindingCheck[Skip ?patient<br>binding check]
+    EnsurePatientProperty --> RespondToFHIRQueries{Query<br>Image Source}
+    SkipPatientBindingCheck --> RespondToFHIRQueries
+    RespondToFHIRQueries -->|"<b>images.lookup</b><br><code>studies-by-context</code>"| PatientBinding[(Search Studies<br>by Patient ID)]
+    RespondToFHIRQueries -->|"<b>images.lookup</b><br><code>all-studies</code>"| AllStudiesOnServer[("Search Studies<br>(all)")]
+
+    PatientBinding --> FHIRResponseComplete(((FHIR<br>Response Complete)))
+    AllStudiesOnServer --> FHIRResponseComplete
+
+    DICOMQuery --> CheckDICOMSessionBinding{Check<br><code>/wado/:studyToken</code>}
+    CheckDICOMSessionBinding -->|"<b>authorization.disabled</b><br><code>false</code> (default)"|CheckSessionBindingToken[Ensure session binding token<br>valid and matches<br>resolved patient]
+    CheckDICOMSessionBinding -->|"<b>authorization.disabled</b><br><code>true</code>"| SkipSessionBindingCheck[Skip session binding check]
+    CheckSessionBindingToken --> DICOMWebResponseGeneration[(Retrieve<br>DICOM Study)]
+    SkipSessionBindingCheck --> DICOMWebResponseGeneration
+    DICOMWebResponseGeneration --> DICOMWebResponseComplete(((DICOM Web<br>Response Complete)))
+
+```
+
 
 ## Technologies under the hood
 
