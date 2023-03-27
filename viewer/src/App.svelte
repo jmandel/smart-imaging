@@ -8,17 +8,54 @@
   import { parseMultipart } from "./multipart";
   import * as _ from "lodash";
 
-  import {authorize, client} from "./lib/smart";
+  import { authorize, client, type Client } from "./lib/smart";
+  import { forEach } from "lodash";
+
+  let clinicalDetails: {
+    name: string;
+    birthDate: string;
+    activeCounts: {
+      AllergyIntolerance: number;
+      Condition: number;
+      MedicationRequest: number;
+    };
+  } = null;
 
   let imagingStudies: StudyToFetch[] = [];
   async function fetchPatient(client: Client) {
     try {
       const patient = await client.patient.read();
+      clinicalDetails = {
+        name: patient.name[0].text || `${patient.name[0].given.join(" ")} ${patient.name[0].family}`,
+        birthDate: patient.birthDate,
+      };
       console.log("Patient", patient);
-    } catch {
+
+      const statuses = [
+        "AllergyIntolerance?clinical-status=active",
+        "Condition?clinical-status=active",
+        "MedicationRequest?status=active",
+      ];
+
+      (async function () {
+        const activeCounts: any = Object.fromEntries(
+          (await Promise.all(statuses.map((s) => s.split(".")[0]).map((r) => client.patient.request(r)))).map(
+            (rb, i) => {
+              const resources = (rb as any)?.entry?.map((e) => e.resource) || [];
+              console.log(resources);
+              return [statuses[i].split("?")[0], resources.length];
+            }
+          )
+        );
+        clinicalDetails.activeCounts = activeCounts;
+        console.log(clinicalDetails);
+      })();
+    } catch (e) {
+      console.log(e);
       console.log("Could not fetch patient; destroying client");
       $client = null;
     }
+
     const images = await client.images();
     imagingStudies = images.entry
       .map((e) => e.resource)
@@ -204,51 +241,56 @@
     </div>
   </nav>
 </div>
-
 <div class="container">
-  {#if $client === null}
-    <div class="row">
-      <div class="col col-2 content-box">
-        <button on:click={() => authorize()}>Connect</button>
-      </div>
-    </div>
-  {:else if !studyLoaded}
-    <div class="row">
-      <div class="col col-2 content-box">
-        {#each imagingStudies as study}
-          <button disabled={studyDownloading} value={study.address} on:click={() => fetchStudy(study)}
-            >Fetch {study.modality}</button
-          >
-        {/each}
-      </div>
-    </div>
-  {:else}
-    <div class="row">
-      <div class="col col-2 content-box">
-        <h2>Patient</h2>
-        {#if studyLoaded}
-          <p>Name: {studyLoaded.patient.name}</p>
-          <p>ID: {studyLoaded.patient.id}</p>
-          <p>Date: {studyLoaded.date}</p>
-          <p>Study Description: {studyLoaded.description}</p>
-        {:else}
-          <p>Loading...</p>
+  <div class="row">
+    <div class="col col-1 flexv">
+      <div class="content-box">
+        {#if $client === null}
+          <button on:click={() => authorize()}>Connect</button>
+        {:else if clinicalDetails}
+          <h2>EHR Data</h2>
+          <p>{clinicalDetails.name}</p>
+          <p>{clinicalDetails.birthDate}</p>
+          {#each Object.keys(clinicalDetails.activeCounts || {}) as r}
+            <p>{clinicalDetails.activeCounts[r] || "No "} active {r.split(".")[0]}s</p>
+          {/each}
+        {/if}
+        {#if $client && !studyLoaded}
+          {#each imagingStudies as study}
+            <button disabled={studyDownloading} value={study.address} on:click={() => fetchStudy(study)}
+              >Fetch {study.modality}</button
+            >
+          {/each}
         {/if}
       </div>
-      <div class="col col-1 content-box">
-        <h2>Select Series</h2>
-        <div class="series-buttons">
-          {#each studyLoaded.series as series, i}
-            <button on:click={() => selectSeries(i)}>{series.name}</button>
-          {/each}
-        </div>
-      </div>
-    </div>
-  {/if}
+      {#if studyLoaded}
+        <div class="content-box">
+          <h2>
+            Study Data (<a
+              on:click={() => {
+                studyLoaded = null;
+              }}
+              style="text-decoration: none"
+              href="#">↑</a
+            >)
+          </h2>
+          {#if studyLoaded}
+            <p>Patient: {studyLoaded.patient.name}</p>
+            <p>Study Date: {studyLoaded.date}</p>
+            <p>Study Description: {studyLoaded.description}</p>
+          {/if}
 
-  {#if selectedInstance}
-    <div class="row">
-      <div class="col col-4 content-box">
+          <div class="series-buttons">
+            {#each studyLoaded.series as series, i}
+              <button on:click={() => selectSeries(i)}>{series.name}</button>
+            {/each}
+          </div>
+        </div>
+      {/if}
+    </div>
+
+    <div class="col col-3 content-box">
+      {#if selectedInstance}
         {#if instanceRange[1] > 0}
           <input
             class="instance-slider"
@@ -260,9 +302,9 @@
           />
         {/if}
         <Viewer seriesIndex={selectedSeries} imageId={selectedInstance} />
-      </div>
+      {/if}
     </div>
-  {/if}
+  </div>
   <div class="row">
     <footer class="content-box col col-4">
       SMART Imaging Access. Related:
@@ -273,10 +315,27 @@
 </div>
 
 <style>
-  .series-buttons button {
+  .instance-slider {
     width: 100%;
   }
-  .instance-slider {
+  button.tiny {
+    width: 0.3em;
+    height: 0.5em;
+    font-size: 0.2em;
+  }
+
+  .flexv {
+    display: flex;
+    flex-wrap: wrap;
+    row-gap: 1em;
+  }
+
+  .series-buttons {
+    display: flex;
+    flex-wrap: wrap;
+  }
+
+  .series-buttons button {
     width: 100%;
   }
 </style>

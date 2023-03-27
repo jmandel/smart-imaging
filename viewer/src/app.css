@@ -173,7 +173,7 @@ input[type="submit"]:hover {
   flex: 2 1 calc(50% - 1rem);
 }
 .col-3 {
-  flex-grow: 3;
+  flex: 3 1 calc(75% - 1rem);
 }
 .col-4 {
   flex-grow: 4;
@@ -193,6 +193,7 @@ input[type="submit"]:hover {
   padding: 1rem;
   border-radius: 4px;
   box-shadow: var(--box-shadow);
+  width: 100%;
 }
 
 a, a:link {
