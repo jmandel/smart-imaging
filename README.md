@@ -119,10 +119,15 @@ Pre-specified configurations are controlled by files in [`./server/config`](./se
 
 Dynamic configurations are useful when you want to get started testing SMART Imaging with your own EHR's authorization server. You can rapidly iterate on your config settings until you get something that works. These paths start with  `/dyn/:encoded`, where the variable component is `base64urlencode(JSON.stringify(config))`. For example, you might test out configurations dynamically until you're happy with the behavior; then you might email a few colleagues your base URL so they can test things out, and eventually you might submit a PR to this repository so a wider audience can reproduce this behavior.
 
+
 #### Example of `/dyn/:encoded`
 
-Here's an example of how to encode your config settings. (You can try this yourself in a [Deno REPL](https://deno.land/manual/getting_started/installation).)
-```
+You can easily create your own dynamically configured endpoint using
+
+* Editor tool at http://imaging-app.argo.run/config, or
+* Code like the snippet below (runnable in [Deno REPL](https://deno.land/manual/getting_started/installation))
+
+```ts
 import {encode} from "https://deno.land/std@0.179.0/encoding/base64url.ts";
 
 const ex = {
