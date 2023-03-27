@@ -1,5 +1,6 @@
 import { Router } from "./deps.ts";
 import { AppState } from "./types.ts";
+import {baseUrl} from "./config.ts";
 
 export const fhirRouter = new Router<AppState>();
 fhirRouter.all("/(.*)", async (ctx, next) => {
@@ -15,6 +16,50 @@ fhirRouter.all("/(.*)", async (ctx, next) => {
     throw `Patient parameter is required and must match authz context`;
   }
   await next();
+});
+
+// deno-lint-ignore require-await
+fhirRouter.get("/", async (ctx) => {
+  ctx.response.body = {
+    Welcome: "To the SMART Imaging Access Demo Server",
+    Configuration: "This Demo hosts many virtual FHIR endpoints with different configurations, to assist in testing. See https://github.com/jmandel/smart-imaging#flexible-behaviors",
+    SeeAlso: [`./metadata`, `./ImagingStudy?patient={}`]
+  };
+});
+
+// deno-lint-ignore require-await
+fhirRouter.get("/metadata", async (ctx) => {
+  ctx.response.body = {
+    resourceType: "CapabilityStatement",
+    status: "active",
+    date: new Date().toISOString(),
+    kind: "instance",
+    fhirVersion: "4.0.1",
+    format: ["json", "application/fhir+json"],
+    rest: [
+      {
+        mode: "server",
+        resource: [
+          {
+            type: "ImagingStudy",
+            interaction: [
+              {
+                code: "search-type",
+              },
+            ],
+            searchInclude: ["*", "ImagingStudy:endpoint"],
+            searchParam: [
+              {
+                name: "patient",
+                definition: "http://hl7.org/fhir/SearchParameter/clinical-patient",
+                type: "reference",
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  };
 });
 
 fhirRouter.get("/ImagingStudy", async (ctx) => {
