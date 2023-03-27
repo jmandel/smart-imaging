@@ -1,3 +1,4 @@
+import { routerOpts } from "./config.ts";
 import { jose, oak, Router } from "./deps.ts";
 import { AppState, FhirResponse, Identifier, Patient, QidoResponse, TAGS } from "./types.ts";
 
@@ -161,9 +162,9 @@ export const _internals = {
   wadoStudyRetrieve,
 };
 
-const wadoInnerRouter = new Router<AppState>().get("/studies/:uid(.*)", (ctx) => _internals.wadoStudyRetrieve(ctx));
+const wadoInnerRouter = new Router<AppState>(routerOpts).get("/studies/:uid(.*)", (ctx) => _internals.wadoStudyRetrieve(ctx));
 
-export const wadoRouter = new Router<AppState>()
+export const wadoRouter = new Router<AppState>(routerOpts)
   .all("/:studyPatientBinding/studies/:uid/(.*)?", async (ctx, next) => {
     const token = await jose.compactVerify(ctx.params.studyPatientBinding, ephemeralKey);
     const { uid, patient }: { uid: string; patient: string } = JSON.parse(new TextDecoder().decode(token.payload));

@@ -7,7 +7,7 @@ const app = new Application<AppState>();
 import { resolve } from "https://deno.land/std@0.179.0/path/mod.ts";
 import { Introspection } from "./introspection.ts";
 import { DicomProvider, wadoRouter } from "./dicomweb.ts";
-import { baseUrl, port } from "./config.ts";
+import { baseUrl, port, routerOpts } from "./config.ts";
 import { fhirRouter } from "./fhir.ts";
 
 const tenantConfig = new Map<string, unknown>();
@@ -20,8 +20,13 @@ for (const f of Deno.readDirSync("config")) {
   }
 }
 
-const multiTenantRouter = new Router<AppState>();
-multiTenantRouter.all("/:dyn(dyn)?/:tenant/(fhir|wado)/(.*)", async (ctx, next) => {
+const PATHS_WITHOUT_AUTHORIZATION = ["", "metadata"]
+const multiTenantRouter = new Router<AppState>(routerOpts);
+multiTenantRouter.all("/:dyn(dyn)?/:tenant/(fhir|wado)/:suffix(.*)", async (ctx, next) => {
+  if (PATHS_WITHOUT_AUTHORIZATION.includes(ctx.params.suffix)) {
+    return await next();
+  }
+
   const tenantKey = ctx.params.tenant;
   let tenant;
   if (ctx.params.dyn) {
@@ -44,7 +49,6 @@ multiTenantRouter.all("/:dyn(dyn)?/:tenant/(fhir|wado)/(.*)", async (ctx, next) 
     tenant.images,
     reqBase + (ctx.params.dyn ? `/dyn/${ctx.params.dyn}` : ``) + `/${ctx.params.tenant}/wado`,
   );
-  console.log(ctx.state.imagesProvider.wadoBase);
   await next();
 });
 
@@ -59,12 +63,13 @@ app.use(async (ctx, next) => {
 });
 
 app.use(
-  new Router()
+  new Router(routerOpts)
     .get("/", (ctx) => {
       ctx.response.redirect("https://github.com/jmandel/smart-imaging#getting-started");
     })
     .routes(),
 );
+
 
 multiTenantRouter.use("/:dyn(dyn)?/:tenant/fhir", fhirRouter.routes());
 multiTenantRouter.use("/:dyn(dyn)?/:tenant/wado", wadoRouter.routes());

@@ -1,16 +1,17 @@
 import { Router } from "./deps.ts";
 import { AppState } from "./types.ts";
-import {baseUrl} from "./config.ts";
+import {baseUrl, routerOpts} from "./config.ts";
 
-export const fhirRouter = new Router<AppState>();
-fhirRouter.all("/([A-Z].*)", async (ctx, next) => {
+export const fhirRouter = new Router<AppState>(routerOpts);
+fhirRouter.all("/:fhir([A-Z].*)", async (ctx, next) => {
+  console.log("frpath", ctx.params)
   let patient = ctx.request.url.searchParams.get("patient");
   if (patient?.startsWith("Patient/")) {
     patient = patient.split("Patient/")[1];
   }
 
   if (ctx.state.disableAccessControl) {
-    return next();
+    return await next();
   }
   if (!patient || patient !== ctx.state.authorizedForPatient!.id) {
     throw `Patient parameter is required and must match authz context`;

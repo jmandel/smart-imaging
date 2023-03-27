@@ -10,3 +10,6 @@ export const baseUrl =
   Deno.permissions.querySync({ name: "env", variable: "BASE_URL" }).state === "granted"
     ? Deno.env.get("BASE_URL") ?? defaultBaseUrl
     : defaultBaseUrl;
+
+
+export const routerOpts = {sensitive: true}
