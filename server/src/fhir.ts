@@ -3,7 +3,7 @@ import { AppState } from "./types.ts";
 import {baseUrl} from "./config.ts";
 
 export const fhirRouter = new Router<AppState>();
-fhirRouter.all("/(.*)", async (ctx, next) => {
+fhirRouter.all("/([A-Z].*)", async (ctx, next) => {
   let patient = ctx.request.url.searchParams.get("patient");
   if (patient?.startsWith("Patient/")) {
     patient = patient.split("Patient/")[1];
