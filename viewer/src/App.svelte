@@ -251,6 +251,11 @@
           <h2>EHR Data</h2>
           <p>{clinicalDetails.name}</p>
           <p>{clinicalDetails.birthDate}</p>
+          {#if Object.keys(clinicalDetails?.activeCounts || {}).length == 0}
+            <p>Loading</p>
+            <p>&nbsp;</p>
+            <p>&nbsp;</p>
+          {/if}
           {#each Object.keys(clinicalDetails.activeCounts || {}) as r}
             <p>{clinicalDetails.activeCounts[r] || "No "} active {r.split(".")[0]}s</p>
           {/each}
