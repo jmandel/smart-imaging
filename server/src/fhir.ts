@@ -1,6 +1,6 @@
 import { Router } from "./deps.ts";
 import { AppState } from "./types.ts";
-import {baseUrl, routerOpts} from "./config.ts";
+import { routerOpts} from "./config.ts";
 
 export const fhirRouter = new Router<AppState>(routerOpts);
 fhirRouter.all("/:fhir([A-Z].*)", async (ctx, next) => {

@@ -47,7 +47,7 @@ multiTenantRouter.all("/:dyn(dyn)?/:tenant/(fhir|wado)/:suffix(.*)", async (ctx,
   const reqBase = baseUrl;
   ctx.state.imagesProvider = new DicomProvider(
     tenant.images,
-    reqBase + (ctx.params.dyn ? `/dyn/${ctx.params.dyn}` : ``) + `/${ctx.params.tenant}/wado`,
+    reqBase + (ctx.params.dyn ? `/dyn/${ctx.params.dyn}` : ``) + `/${ctx.params.tenant}`,
   );
   await next();
 });

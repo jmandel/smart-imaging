@@ -62,7 +62,7 @@ export function formatDate(dateString: string, timeString?: string): string | un
 async function formatResource(
   q: QidoResponse[number],
   patientId: string | undefined,
-  wadoBase: string
+  proxyBase: string,
 ): Promise<FhirResponse["entry"][number]["resource"]> {
   const uid = q[TAGS.STUDY_UID].Value[0];
   const studyDateTime = formatDate(q[TAGS.STUDY_DATE].Value?.[0], q[TAGS.STUDY_TIME].Value?.[0]);
@@ -73,7 +73,7 @@ async function formatResource(
     id: q[TAGS.STUDY_UID].Value[0],
     subject: {
       display: formatName(q[TAGS.PATIENT_NAME]?.Value?.[0]?.Alphabetic),
-      reference: patientId ? `Patient/${patientId}` : undefined,
+      reference: patientId ? `${proxyBase}/fhir/Patient/${patientId}` : undefined,
     },
     started: studyDateTime,
     referrer: {
@@ -86,7 +86,7 @@ async function formatResource(
       {
         resourceType: "Endpoint",
         id: "e",
-        address: `${wadoBase}/${await signStudyUid(uid, patientId)}`,
+        address: `${proxyBase}/wado/${await signStudyUid(uid, patientId)}`,
         connectionType: {
           system: "http://terminology.hl7.org/CodeSystem/endpoint-connection-type",
           code: "dicom-wado-rs",
@@ -103,7 +103,7 @@ async function formatResource(
 }
 
 export class DicomProvider {
-  constructor(public config: DicomProviderConfig, public wadoBase: string) {}
+  constructor(public config: DicomProviderConfig, public proxyBase: string) {}
   authHeader() {
     return `Basic ${btoa(`${this.config.authentication.username}:${this.config.authentication.password}`)}`;
   }
@@ -133,7 +133,7 @@ export class DicomProvider {
       query = `PatientID=${mrn}`;
     }
     const qido = new URL(`${this.config.endpoint}/studies?${query}`);
-    // console.log("Q", qido);
+    console.log("Q", qido);
     const studies: QidoResponse = await fetch(qido, {
       headers: {
         authorization: this.authHeader(),
@@ -143,7 +143,7 @@ export class DicomProvider {
       resourceType: "Bundle",
       entry: await Promise.all(
         studies.map(async (q) => ({
-          resource: await formatResource(q, patient?.id, this.wadoBase),
+          resource: await formatResource(q, patient?.id, this.proxyBase),
         }))
       ),
     };
