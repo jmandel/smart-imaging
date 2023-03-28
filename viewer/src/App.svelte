@@ -90,15 +90,32 @@
     }
   }
 
+  let hotkeys = {};
+  $: {
+    if (!studyLoaded && imagingStudies) {
+      hotkeys = _.chain(_.range(0, imagingStudies.length))
+        .map((i) => [i + 1, () => fetchStudy(imagingStudies[i])])
+        .fromPairs()
+        .value();
+    }
+    else if (studyLoaded && !selectedSeries) {
+      hotkeys = _.chain(_.range(0, studyLoaded.series.length))
+        .map((i) => [i + 1, () => selectSeries(i)])
+        .fromPairs()
+        .value();
+    }
+  }
+
   onMount(() => {
     // Add event listener to window
     function listen(e: KeyboardEvent) {
       if (e.key === ">") {
-        nextInstance(1);
+        return nextInstance(1);
       }
       if (e.key === "<") {
-        nextInstance(-1);
+        return nextInstance(-1);
       }
+      hotkeys[e.key] && hotkeys[e.key]()
     }
 
     window.addEventListener("keydown", listen);
@@ -181,7 +198,7 @@
         }))
         .value(),
     });
-    
+
   $: studyLoaded && selectSeries(0);
 
   $: console.log("Study", studyLoaded);
@@ -191,6 +208,7 @@
 
   function parseStudyMetadata(study: Uint8Array[]) {
     cornerstoneWADOImageLoader.wadouri.fileManager.purge();
+    console.log("Purged")
     const instances: InstanceDetails[] = study.map((dicomData) => {
       const imageId = cornerstoneWADOImageLoader.wadouri.fileManager.add(new Blob([dicomData]));
       const dataSet = dicomParser.parseDicom(dicomData);
@@ -287,44 +305,49 @@
           {/each}
         {/if}
       </div>
-      <div class="content-box study-sidebar">
-        {#if $client && !studyLoaded}
-          <h2>Imaging Studies</h2>
-          {#each imagingStudies as study}
-            <button disabled={studyDownloading} value={study.address} on:click={() => fetchStudy(study)}
-              >Fetch {study.modality}</button
-            >
-          {/each}
-          {#if imagingStudies.length === 0}
-            <em>No studies available</em>
-          {/if}
-        {/if}
-
-        {#if studyLoaded}
-          <h2>
-            Study Data (<a
-              on:click={() => {
-                studyLoaded = null;
-              }}
-              style="text-decoration: none"
-              href="#">↑</a
-            >)
-          </h2>
-          {#if studyLoaded}
-            <p>Patient: {studyLoaded.patient.name}</p>
-            <p>Study Date: {studyLoaded.date}</p>
-            <p>Study Description: {studyLoaded.description}</p>
-          {/if}
-
-          <div class="series-buttons">
-            {#each studyLoaded.series as series, i}
-              <button class:active={selectedSeries === i} on:click={() => selectSeries(i)}>{series.name}</button>
+      {#if $client || studyLoaded}
+        <div class="content-box study-sidebar">
+          {#if !studyLoaded}
+            <h2>Imaging Studies</h2>
+            {#each imagingStudies as study, i}
+              <button class="hotkey-button" disabled={studyDownloading} value={study.address} on:click={() => fetchStudy(study)}
+                >Fetch {study.modality}
+                  <span class="hotkey">{i + 1}</span>
+                </button
+              >
             {/each}
-          </div>
-        {/if}
-      </div>
+            {#if imagingStudies.length === 0}
+              <em>No studies available</em>
+            {/if}
+          {:else}
+            <h2>
+              Study Data (<a
+                on:click={() => {
+                  studyLoaded = null;
+                  selectedSeries = null;
+                  selectedInstance = null;
+                }}
+                style="text-decoration: none"
+                href="#">↑</a
+              >)
+            </h2>
+            {#if studyLoaded}
+              <p>Patient: {studyLoaded.patient.name}</p>
+              <p>Study Date: {studyLoaded.date}</p>
+              <p>Study Description: {studyLoaded.description}</p>
+            {/if}
+            <div class="series-buttons">
+              {#each studyLoaded.series as series, i}
+                <button class="hotkey-button" class:active={selectedSeries === i} on:click={() => selectSeries(i)}
+                  >{series.name}
+                  <span class="hotkey">{i + 1}</span>
+                </button>
+              {/each}
+            </div>
+          {/if}
+        </div>
+      {/if}
     </div>
-
     <div class="col col-3 content-box">
       {#if selectedInstance}
         {#if instanceRange[1] > 0}
@@ -372,10 +395,18 @@
     flex-wrap: wrap;
   }
 
-  .series-buttons button {
+  button.hotkey-button {
     width: 100%;
+    position: relative;
   }
-  
+
+  button.hotkey-button .hotkey {
+    font-family: monospace;
+    position: absolute;
+    margin-left: 0.5em;
+    left: 0;
+  }
+
   .series-buttons .active {
     border: 1px solid var(--secondary-text-color);
   }
