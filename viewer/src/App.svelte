@@ -9,12 +9,25 @@
   import * as _ from "lodash";
 
   import { authorize, client, type Client } from "./lib/smart";
-  import { forEach } from "lodash";
+  import Settings from "./Settings.svelte";
+  import { settings } from "./settings";
+
+  function beginAuthorization() {
+    authorize($settings?.clientConfig[selectedServerIndex]);
+  }
+  let selectedServerIndex = 0;
+  let iss = new URLSearchParams(window.location.search).get("iss");
+  if (iss) {
+    selectedServerIndex = $settings.clientConfig.findIndex(
+      (s) => new URL(s.clinicalServer).origin === new URL(iss).origin
+    );
+    beginAuthorization();
+  }
 
   let clinicalDetails: {
     name: string;
     birthDate: string;
-    activeCounts: {
+    activeCounts?: {
       AllergyIntolerance: number;
       Condition: number;
       MedicationRequest: number;
@@ -223,6 +236,10 @@
     allRetrievedInstances = parseStudyMetadata(study);
     studyDownloading = false;
   }
+  let settingsOpen = false;
+  function settingToggle() {
+    settingsOpen = !settingsOpen;
+  }
 
   // fetchStudy(
   //   "https://imaging.argo.run/orthanc/dicom-web/studies/1.2.276.0.7230010.3.1.2.4094306560.1.1678736912.732222"
@@ -236,17 +253,24 @@
     Demo
   </h1>
   <nav class="nav-links">
-    <div style="display: flex; gap: .5rem; align-items: center">
+    <!-- svelte-ignore a11y-click-events-have-key-events -->
+    <div style="display: flex; gap: .5rem; align-items: center; cursor: pointer" on:click={settingToggle}>
       Settings<span class="material-icons">settings</span>
     </div>
   </nav>
 </div>
-<div class="container">
+<Settings on:save={settingToggle} bind:open={settingsOpen} />
+<div class="container" style="position: relative;">
   <div class="row">
     <div class="col col-1 flexv">
       <div class="content-box">
         {#if $client === null}
-          <button on:click={() => authorize()}>Connect</button>
+          <select bind:value={selectedServerIndex}>
+            {#each $settings?.clientConfig as server, i}
+              <option value={i}>{server.label}</option>
+            {/each}
+          </select>
+          <button on:click={beginAuthorization}>Connect</button>
         {:else if clinicalDetails}
           <h2>EHR Data</h2>
           <p>{clinicalDetails.name}</p>
@@ -260,16 +284,21 @@
             <p>{clinicalDetails.activeCounts[r] || "No "} active {r.split(".")[0]}s</p>
           {/each}
         {/if}
+      </div>
+      <div class="content-box study-sidebar">
         {#if $client && !studyLoaded}
+          <h2>Imaging Studies</h2>
           {#each imagingStudies as study}
             <button disabled={studyDownloading} value={study.address} on:click={() => fetchStudy(study)}
               >Fetch {study.modality}</button
             >
           {/each}
+          {#if imagingStudies.length === 0}
+            <em>No studies available</em>
+          {/if}
         {/if}
-      </div>
-      {#if studyLoaded}
-        <div class="content-box">
+
+        {#if studyLoaded}
           <h2>
             Study Data (<a
               on:click={() => {
@@ -290,8 +319,8 @@
               <button on:click={() => selectSeries(i)}>{series.name}</button>
             {/each}
           </div>
-        </div>
-      {/if}
+        {/if}
+      </div>
     </div>
 
     <div class="col col-3 content-box">
@@ -333,6 +362,7 @@
     display: flex;
     flex-wrap: wrap;
     row-gap: 1em;
+    flex-direction: column;
   }
 
   .series-buttons {
@@ -342,5 +372,9 @@
 
   .series-buttons button {
     width: 100%;
+  }
+
+  .study-sidebar {
+    flex-grow: 1;
   }
 </style>
