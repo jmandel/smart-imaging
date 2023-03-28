@@ -181,6 +181,8 @@
         }))
         .value(),
     });
+    
+  $: studyLoaded && selectSeries(0);
 
   $: console.log("Study", studyLoaded);
 
@@ -316,7 +318,7 @@
 
           <div class="series-buttons">
             {#each studyLoaded.series as series, i}
-              <button on:click={() => selectSeries(i)}>{series.name}</button>
+              <button class:active={selectedSeries === i} on:click={() => selectSeries(i)}>{series.name}</button>
             {/each}
           </div>
         {/if}
@@ -372,6 +374,10 @@
 
   .series-buttons button {
     width: 100%;
+  }
+  
+  .series-buttons .active {
+    border: 1px solid var(--secondary-text-color);
   }
 
   .study-sidebar {
