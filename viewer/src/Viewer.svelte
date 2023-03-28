@@ -11,11 +11,11 @@
     if (!viewerElement) {
       return;
     }
+    needReset && cornerstone.disable(viewerElement);
     cornerstone.loadImage(imageId).then((image) => {
+      needReset && cornerstone.enable(viewerElement);
       cornerstone.displayImage(viewerElement, image);
-      if (needReset) {
-        cornerstone.reset(viewerElement)
-      }
+      needReset && cornerstone.reset(viewerElement);
     });
   }
 
@@ -30,8 +30,8 @@
 
   let prevSeriesIndex;
   $: {
-    loadImage(imageId, seriesIndex != prevSeriesIndex)
-    prevSeriesIndex = seriesIndex
+    loadImage(imageId, seriesIndex != prevSeriesIndex);
+    prevSeriesIndex = seriesIndex;
   }
 </script>
 
