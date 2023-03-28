@@ -1,27 +1,32 @@
 {
-  "clientConfig": [{
-    "label": "SMART Sandbox + Unauthenticated Imaging Server",
-    "clientId": "imaging-app",
-    "clinicalServer": "https://launcher.imaging.argo.run/v/r4/sim/WzIsIjg3YTMzOWQwLThjYWUtNDE4ZS04OWM3LTg2NTFlNmFhYjNjNiIsIiIsIkFVVE8iLDAsMCwwLCIiLCIiLCIiLCIiLCIiLCIiLCIiLDAsMV0/fhir",
-    "imagingServer": "https://imaging.argo.run/open/fhir",
-    "scope": "launch/patient patient/*.rs"
-  }, {
-    "label": "SMART Sandbox + Imaging Server",
-    "clientId": "imaging-app",
-    "clinicalServer": "https://launcher.imaging.argo.run/v/r4/sim/WzIsIjg3YTMzOWQwLThjYWUtNDE4ZS04OWM3LTg2NTFlNmFhYjNjNiIsIiIsIkFVVE8iLDAsMCwwLCIiLCIiLCIiLCIiLCIiLCIiLCIiLDAsMV0/fhir",
-    "imagingServer": "https://imaging.argo.run/smart-sandbox/fhir",
-    "scope": "launch/patient patient/*.rs"
-  }, {
-    "label": "(Local) SMART Sandbox + Unauthenticated Imaging Server",
-    "clientId": "imaging-app",
-    "clinicalServer": "https://launcher.imaging-local.argo.run/v/r4/sim/WzIsIjg3YTMzOWQwLThjYWUtNDE4ZS04OWM3LTg2NTFlNmFhYjNjNiIsIiIsIkFVVE8iLDAsMCwwLCIiLCIiLCIiLCIiLCIiLCIiLCIiLDAsMV0/fhir",
-    "imagingServer": "https://imaging-local.argo.run/open/fhir",
-    "scope": "launch/patient patient/*.rs"
-  }, {
-    "label": "(Local) SMART Sandbox + Imaging Server",
-    "clientId": "imaging-app",
-    "clinicalServer": "https://launcher.imaging-local.argo.run/v/r4/sim/WzIsIjg3YTMzOWQwLThjYWUtNDE4ZS04OWM3LTg2NTFlNmFhYjNjNiIsIiIsIkFVVE8iLDAsMCwwLCIiLCIiLCIiLCIiLCIiLCIiLCIiLDAsMV0/fhir",
-    "imagingServer": "https://imaging-local.argo.run/smart-sandbox-local/fhir",
-    "scope": "launch/patient patient/*.rs"
-  }]
+  "clientConfig": [
+    {
+      "label": "SMART Sandbox + Imaging Server",
+      "clientId": "imaging-app",
+      "clinicalServer": "https://launcher.imaging.argo.run/v/r4/sim/WzIsIjg3YTMzOWQwLThjYWUtNDE4ZS04OWM3LTg2NTFlNmFhYjNjNiIsIiIsIkFVVE8iLDAsMCwwLCIiLCIiLCIiLCIiLCIiLCIiLCIiLDAsMV0/fhir",
+      "imagingServer": "https://imaging.argo.run/smart-sandbox/fhir",
+      "scope": "launch/patient patient/*.rs"
+    },
+    {
+      "label": "SMART Sandbox + Unauthenticated Imaging Server",
+      "clientId": "imaging-app",
+      "clinicalServer": "https://launcher.imaging.argo.run/v/r4/sim/WzIsIjg3YTMzOWQwLThjYWUtNDE4ZS04OWM3LTg2NTFlNmFhYjNjNiIsIiIsIkFVVE8iLDAsMCwwLCIiLCIiLCIiLCIiLCIiLCIiLCIiLDAsMV0/fhir",
+      "imagingServer": "https://imaging.argo.run/open/fhir",
+      "scope": "launch/patient patient/*.rs"
+    },
+    {
+      "label": "(Local) SMART Sandbox + Unauthenticated Imaging Server",
+      "clientId": "imaging-app",
+      "clinicalServer": "https://launcher.imaging-local.argo.run/v/r4/sim/WzIsIjg3YTMzOWQwLThjYWUtNDE4ZS04OWM3LTg2NTFlNmFhYjNjNiIsIiIsIkFVVE8iLDAsMCwwLCIiLCIiLCIiLCIiLCIiLCIiLCIiLDAsMV0/fhir",
+      "imagingServer": "https://imaging-local.argo.run/open/fhir",
+      "scope": "launch/patient patient/*.rs"
+    },
+    {
+      "label": "(Local) SMART Sandbox + Imaging Server",
+      "clientId": "imaging-app",
+      "clinicalServer": "https://launcher.imaging-local.argo.run/v/r4/sim/WzIsIjg3YTMzOWQwLThjYWUtNDE4ZS04OWM3LTg2NTFlNmFhYjNjNiIsIiIsIkFVVE8iLDAsMCwwLCIiLCIiLCIiLCIiLCIiLCIiLCIiLDAsMV0/fhir",
+      "imagingServer": "https://imaging-local.argo.run/smart-sandbox-local/fhir",
+      "scope": "launch/patient patient/*.rs"
+    }
+  ]
 }
