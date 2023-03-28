@@ -20,7 +20,7 @@ for (const f of Deno.readDirSync("config")) {
   }
 }
 
-const PATHS_WITHOUT_AUTHORIZATION = ["", "metadata"]
+const PATHS_WITHOUT_AUTHORIZATION = ["", "metadata"];
 const multiTenantRouter = new Router<AppState>(routerOpts);
 multiTenantRouter.all("/:dyn(dyn)?/:tenant/(fhir|wado)/:suffix(.*)", async (ctx, next) => {
   if (PATHS_WITHOUT_AUTHORIZATION.includes(ctx.params.suffix)) {
@@ -69,7 +69,6 @@ app.use(
     })
     .routes(),
 );
-
 
 multiTenantRouter.use("/:dyn(dyn)?/:tenant/fhir", fhirRouter.routes());
 multiTenantRouter.use("/:dyn(dyn)?/:tenant/wado", wadoRouter.routes());

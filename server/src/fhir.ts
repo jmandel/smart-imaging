@@ -71,7 +71,7 @@ fhirRouter.get("/ImagingStudy", async (ctx) => {
   }
   const p = ctx.state.authorizedForPatient;
 
-  const {delayed, secondsRemaining} = ctx.state.imagesProvider.delayed("lookup");
+  const { delayed, secondsRemaining } = ctx.state.imagesProvider.delayed("lookup");
   if (delayed) {
     ctx.response.headers.set("Retry-After", secondsRemaining!.toString());
     ctx.response.status = 503;

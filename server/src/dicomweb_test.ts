@@ -33,9 +33,9 @@ Deno.test("Dicom Web", async (t) => {
               "content-length": "B",
               "ignore-me": "C",
             },
-          })
+          }),
         ),
-      ])
+      ]),
     );
 
     const result = await d.evaluateDicomWeb("1.2.3", new Headers());
@@ -57,9 +57,9 @@ Deno.test("Dicom Web", async (t) => {
             headers: {
               "content-type": "application/json",
             },
-          })
+          }),
         ),
-      ])
+      ]),
     );
 
     let result = await d.lookupStudies();
@@ -83,9 +83,9 @@ Deno.test("Dicom Web", async (t) => {
             headers: {
               "content-type": "application/json",
             },
-          })
+          }),
         ),
-      ])
+      ]),
     );
 
     result = await d.lookupStudies(testPatient);

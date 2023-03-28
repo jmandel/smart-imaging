@@ -11,5 +11,4 @@ export const baseUrl =
     ? Deno.env.get("BASE_URL") ?? defaultBaseUrl
     : defaultBaseUrl;
 
-
-export const routerOpts = {sensitive: true}
+export const routerOpts = { sensitive: true };
