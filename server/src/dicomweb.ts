@@ -25,6 +25,10 @@ export const signStudyUid = async (uid: string, patient?: string) => {
 
 export type DicomProviderConfig = {
   type: "dicom-web";
+  delay?: {
+    lookupUntil?: number;
+    retrieveUntil?: number;
+  };
   lookup: "studies-by-mrn" | "all-studies-on-server";
   endpoint: string;
   authentication: {
@@ -62,7 +66,7 @@ export function formatDate(dateString: string, timeString?: string): string | un
 async function formatResource(
   q: QidoResponse[number],
   patientId: string | undefined,
-  proxyBase: string,
+  proxyBase: string
 ): Promise<FhirResponse["entry"][number]["resource"]> {
   const uid = q[TAGS.STUDY_UID].Value[0];
   const studyDateTime = formatDate(q[TAGS.STUDY_DATE].Value?.[0], q[TAGS.STUDY_TIME].Value?.[0]);
@@ -106,6 +110,17 @@ export class DicomProvider {
   constructor(public config: DicomProviderConfig, public proxyBase: string) {}
   authHeader() {
     return `Basic ${btoa(`${this.config.authentication.username}:${this.config.authentication.password}`)}`;
+  }
+  delayed(activity: "lookup" | "retrieve") {
+    const configKey = (activity + "Until") as "lookupUntil" | "retrieveUntil";
+    const delayUntil = this.config?.delay?.[configKey];
+    if (delayUntil) {
+      const delayRemaining = delayUntil - new Date().getTime() / 1000;
+      if (delayRemaining > 0) {
+        return { delayed: true, secondsRemaining: delayRemaining };
+      }
+    }
+    return { delayed: false };
   }
   async evaluateDicomWeb(path: string, reqHeaders: Headers): Promise<DicomWebResult> {
     const proxied = await fetch(`${this.config.endpoint}/studies/${path}`, {
@@ -151,6 +166,13 @@ export class DicomProvider {
 }
 
 const wadoStudyRetrieve = async (ctx: oak.RouterContext<"/studies/:uid(.*)", { [k: string]: string }, AppState>) => {
+  const { delayed, secondsRemaining } = ctx.state.imagesProvider.delayed("retrieve");
+  if (delayed) {
+    ctx.response.headers.set("Retry-After", secondsRemaining!.toString());
+    ctx.response.status = 503;
+    return;
+  }
+
   const { headers, body } = await ctx.state.imagesProvider.evaluateDicomWeb(`${ctx.params.uid}`, ctx.request.headers);
   Object.entries(headers).forEach(([k, v]) => {
     ctx.response.headers.set(k, v);
@@ -162,7 +184,9 @@ export const _internals = {
   wadoStudyRetrieve,
 };
 
-const wadoInnerRouter = new Router<AppState>(routerOpts).get("/studies/:uid(.*)", (ctx) => _internals.wadoStudyRetrieve(ctx));
+const wadoInnerRouter = new Router<AppState>(routerOpts).get("/studies/:uid(.*)", (ctx) =>
+  _internals.wadoStudyRetrieve(ctx)
+);
 
 export const wadoRouter = new Router<AppState>(routerOpts)
   .all("/:studyPatientBinding/studies/:uid/(.*)?", async (ctx, next) => {
