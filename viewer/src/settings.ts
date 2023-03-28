@@ -13,13 +13,21 @@ export interface Settings {
 
 import serversJson from "./config/servers.json";
 
-export const settings = writable<Settings>(
-  window.localStorage.getItem("settings")
-    ? JSON.parse(window.localStorage.getItem("settings")!)
-    : {
-        clientConfig: serversJson.clientConfig,
-      }
-);
+function factoryReset() {
+  return {
+    clientConfig: serversJson.clientConfig,
+  }
+}
+export const settings = {
+  ...writable<Settings>(
+    window.localStorage.getItem("settings")
+      ? JSON.parse(window.localStorage.getItem("settings")!)
+      : factoryReset()
+  ),
+  factoryReset() {
+    this.set(factoryReset())
+  }
+}
 
 settings.subscribe((s) => {
   window.localStorage.setItem("settings", JSON.stringify(s));

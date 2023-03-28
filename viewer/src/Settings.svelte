@@ -9,6 +9,15 @@
     console.log("Assigned editable from store");
   }
 
+  function discardChanges() {
+    editableSettings = $settingsJson
+  }
+
+
+  function factoryReset() {
+    settings.factoryReset()
+  }
+
   $: {
     ingestSettings($settings);
   }
@@ -26,6 +35,8 @@
               open = false;
             }}>Save Settings</button
           >
+          <button on:click={() => { discardChanges(); open = false; }}>Discard changes</button>
+          <button on:click={factoryReset}>Reset all to defaults</button>
         </div>
       </div>
     </div>
