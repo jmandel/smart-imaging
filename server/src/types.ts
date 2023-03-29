@@ -3,11 +3,13 @@ import type { DicomProvider } from "./dicomweb.ts";
 export interface AppState {
   authorizedForPatient?: Patient;
   introspected?: IntrospectionResponse;
+  ehrBaseUrl?: string;
   imagesProvider: DicomProvider;
   disableAccessControl: boolean;
 }
 
 export interface IntrospectionResponse {
+  sub?: string;
   active: boolean;
   scope: string;
   patient: string;

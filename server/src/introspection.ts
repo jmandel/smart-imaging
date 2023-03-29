@@ -17,13 +17,8 @@ type IntrospectionConfigMock = IntrospectionConfigBase & {
   disabled?: boolean;
 };
 
-type IntrospectionConfig =
-  & IntrospectionConfigBase
-  & (
-    | { type: "smart-on-fhir" }
-    | { type: "smart-on-fhir-with-epic-bugfixes" }
-    | IntrospectionConfigMock
-  );
+type IntrospectionConfig = IntrospectionConfigBase &
+  ({ type: "smart-on-fhir" } | { type: "smart-on-fhir-with-epic-bugfixes" } | IntrospectionConfigMock);
 
 interface SmartConfiguration {
   token_endpoint: string;
@@ -34,6 +29,7 @@ interface AuthorizationAssignment {
   patient?: Patient;
   introspected?: IntrospectionResponse;
   disableAccessControl?: boolean;
+  ehrBaseUrl?: string;
 }
 
 export class Introspection {
@@ -52,12 +48,9 @@ export class Introspection {
 
   async getSmartConfiguration() {
     if (!this.cache.smartConfiguration) {
-      const smartConfig = await fetch(
-        `${this.config.fhirBaseUrl}/.well-known/smart-configuration`,
-        {
-          headers: { accept: "application/json" },
-        },
-      );
+      const smartConfig = await fetch(`${this.config.fhirBaseUrl}/.well-known/smart-configuration`, {
+        headers: { accept: "application/json" },
+      });
       const smartConfigJson = await smartConfig.json();
       this.cache.smartConfiguration = smartConfigJson as SmartConfiguration;
     }
@@ -101,6 +94,7 @@ export class Introspection {
         ["client_assertion", await this.generateClientAssertion()],
       ]).toString(),
     });
+
     const accessTokenJson = await accessTokenResponse.json();
     console.log("AT", accessTokenJson.access_token);
     return accessTokenJson as { access_token: string; expires_in: number };
@@ -118,10 +112,7 @@ export class Introspection {
     return (await introspectionResponse.json()) as IntrospectionResponse;
   }
 
-  async resolvePatient(
-    introspected: IntrospectionResponse,
-    accessToken: string,
-  ): Promise<Patient | null> {
+  async resolvePatient(introspected: IntrospectionResponse, accessToken: string): Promise<Patient | null> {
     if (!introspected.patient) {
       return null;
     }
@@ -173,7 +164,7 @@ export class Introspection {
     if (!patient?.id) {
       throw "Must be authorized against a patient";
     }
-    return { patient, introspected };
+    return { patient, introspected, ehrBaseUrl: this.config.fhirBaseUrl };
   }
 }
 
@@ -185,6 +176,26 @@ export class IntrospectionEpic extends Introspection {
 
   constructor(config: IntrospectionConfig) {
     super(config);
+  }
+
+  async resolvePatient(introspected: IntrospectionResponse, accessToken: string): Promise<Patient | null> {
+    if (!introspected.sub) {
+      return null;
+    }
+    const patientResponse = await fetch(introspected.sub, {
+      method: "GET",
+      headers: {
+        accept: "application/fhir+json",
+        authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    return (await patientResponse.json()) as Patient;
+  }
+
+  allowsImaging(introspected: IntrospectionResponse): boolean {
+    const scopes = introspected.scope.split(/\s+/);
+    return ["patient/Patient.read"].some((s) => scopes.includes(s));
   }
 }
 
@@ -208,6 +219,7 @@ export class IntrospectionMock extends Introspection {
         patient: this.mockConfig.patient!.id,
         scope: "patient/ImagingStudy.rs",
       },
+      ehrBaseUrl: this.mockConfig.fhirBaseUrl
     };
   }
 }

@@ -4,7 +4,6 @@ import { routerOpts } from "./config.ts";
 
 export const fhirRouter = new Router<AppState>(routerOpts);
 fhirRouter.all("/:fhir([A-Z].*)", async (ctx, next) => {
-  console.log("frpath", ctx.params);
   let patient = ctx.request.url.searchParams.get("patient");
   if (patient?.startsWith("Patient/")) {
     patient = patient.split("Patient/")[1];
@@ -78,7 +77,7 @@ fhirRouter.get("/ImagingStudy", async (ctx) => {
     return;
   }
 
-  const studies = await ctx.state.imagesProvider.lookupStudies(p);
+  const studies = await ctx.state.imagesProvider.lookupStudies(p, ctx.state.ehrBaseUrl);
   ctx.response.headers.set("content-type", "application/fhir+json");
   ctx.response.body = JSON.stringify(studies, null, 2);
 });

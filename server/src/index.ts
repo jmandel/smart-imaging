@@ -33,13 +33,15 @@ multiTenantRouter.all("/:dyn(dyn)?/:tenant/(fhir|wado)/:suffix(.*)", async (ctx,
     tenant = JSON.parse(new TextDecoder().decode(jose.base64url.decode(tenantKey)));
   } else {
     tenant = tenantConfig.get(tenantKey);
+    console.log("In scope", tenant)
   }
   const authzForTenant = Introspection.create(tenant.authorization);
-  const { patient, introspected, disableAccessControl } = await authzForTenant.assignAuthorization(
+  const { patient, ehrBaseUrl, introspected, disableAccessControl } = await authzForTenant.assignAuthorization(
     ctx,
   );
 
-  console.log("Set up config to", patient, introspected, disableAccessControl);
+  console.log("Set up config to", patient, introspected, disableAccessControl, ehrBaseUrl);
+  ctx.state.ehrBaseUrl = ehrBaseUrl;
   ctx.state.disableAccessControl = Boolean(disableAccessControl);
   ctx.state.authorizedForPatient = patient;
   ctx.state.introspected = introspected;

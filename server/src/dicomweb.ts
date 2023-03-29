@@ -66,7 +66,8 @@ export function formatDate(dateString: string, timeString?: string): string | un
 async function formatResource(
   q: QidoResponse[number],
   patientId: string | undefined,
-  proxyBase: string,
+  proxyBaseUrl: string,
+  ehrBaseUrl?: string,
 ): Promise<FhirResponse["entry"][number]["resource"]> {
   const uid = q[TAGS.STUDY_UID].Value[0];
   const studyDateTime = formatDate(q[TAGS.STUDY_DATE].Value?.[0], q[TAGS.STUDY_TIME].Value?.[0]);
@@ -77,7 +78,7 @@ async function formatResource(
     id: q[TAGS.STUDY_UID].Value[0],
     subject: {
       display: formatName(q[TAGS.PATIENT_NAME]?.Value?.[0]?.Alphabetic),
-      reference: patientId ? `${proxyBase}/fhir/Patient/${patientId}` : undefined,
+      reference: patientId ? `${ehrBaseUrl ?? ""}/Patient/${patientId}` : undefined,
     },
     started: studyDateTime,
     referrer: {
@@ -90,7 +91,7 @@ async function formatResource(
       {
         resourceType: "Endpoint",
         id: "e",
-        address: `${proxyBase}/wado/${await signStudyUid(uid, patientId)}`,
+        address: `${proxyBaseUrl}/wado/${await signStudyUid(uid, patientId)}`,
         connectionType: {
           system: "http://terminology.hl7.org/CodeSystem/endpoint-connection-type",
           code: "dicom-wado-rs",
@@ -142,7 +143,7 @@ export class DicomProvider {
     return { headers, body: proxied.body! };
   }
 
-  async lookupStudies(patient?: Patient): Promise<FhirResponse> {
+  async lookupStudies(patient?: Patient, ehrBaseUrl?: string): Promise<FhirResponse> {
     let query = ``;
     if (this.config.lookup === "studies-by-mrn" && patient) {
       const mrnIdentifier = patient.identifier.filter((i: Identifier) =>
@@ -163,7 +164,7 @@ export class DicomProvider {
       resourceType: "Bundle",
       entry: await Promise.all(
         studies.map(async (q) => ({
-          resource: await formatResource(q, patient?.id, this.proxyBase),
+          resource: await formatResource(q, patient?.id, this.proxyBase, ehrBaseUrl),
         })),
       ),
     };
@@ -217,7 +218,6 @@ export const wadoRouter = new Router<AppState>(routerOpts)
       throw `Study uid mismatch: ${uid} vs ${ctx.params.uid}`;
     }
 
-    console.log("SPB", ctx.params.studyPatientBinding, ctx.state);
     await next();
   })
   .use("/:studyPatientBinding", wadoInnerRouter.routes());
