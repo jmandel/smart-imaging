@@ -64,7 +64,7 @@ async function computeSha256(json: any): Promise<string> {
     .join("");
 }
 
-async function getNewUids(dicomFilePath: string, identityFilePath: string, prefix = "2.16.840.1.113883.3.23") {
+async function getNewUids(dicomFilePath: string, identityFilePath: string, prefix = "1.3.6.1.4.1.37476.9000.163") {
   console.log(`Processing file: ${dicomFilePath}`);
 
   const studyUID = await getUID(dicomFilePath, "StudyInstanceUID");
