@@ -100,7 +100,7 @@ async function remapDicomFile(dicomFilePath: string, identityFilePath: string) {
   const pt = JSON.parse(Deno.readTextFileSync(path.join("..", identityFilePath)));
   const nameFamily = pt.name?.[0]?.family;
   const nameGiven = pt.name?.[0]?.given?.join(" ");
-  const mrn = pt.identifier.filter((i: any) => i.type?.coding.some((c: any) => c.code == "MR"))?.[0];
+  const mrn = pt.identifier[0]
   const birthDate = pt.birthDate;
 
   const newUids = await getNewUids(dicomFilePath, identityFilePath);
