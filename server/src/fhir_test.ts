@@ -14,16 +14,18 @@ Deno.test("FHIR", async (t) => {
       path,
       state: {
         authorizedForPatient: testPatient,
-        imagesProvider: { lookupStudies: async (p: any) => fhirBundle },
+        imagesProvider: { lookupStudies: async (p: any) => fhirBundle, delayed: ()=>({delayed: false})},
       },
     });
 
   const cases = {
-    "/a/b/c": false,
-    "/a/b/c?patient=BAD": false,
-    [`/a/b/c?patient=${testPatient.id}`]: true,
-    [`/?patient=Patient/${testPatient.id}`]: true,
-    [`?patient=Patient/${testPatient.id}`]: true,
+    "/metadata": true,
+    "/metadata/": true,
+    "/Resource?patient=BAD": false,
+    [`/Resource?patient=${testPatient.id}`]: true,
+    [`Resource?patient=${testPatient.id}`]: true,
+    [`Resource?patient=BAD`]: false,
+    [`Resource`]: false,
   };
 
   for (const [path, valid] of Object.entries(cases)) {

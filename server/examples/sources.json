@@ -1,9 +1,9 @@
 [
  {
     "url": "https://github.com/jmandel/my-health-data/raw/master/wrist-low-res.tgz",
-    "mapIdentity": ["smart-sandbox-patient.json", "anonymous-patient.json"]
+    "mapIdentity": ["smart-sandbox-patient.json", "epic-sandbox-patient.json", "anonymous-patient.json"]
   },{
     "url": "https://github.com/jmandel/my-health-data/raw/master/mri-brain-2020.tgz",
-    "mapIdentity": ["smart-sandbox-patient.json", "anonymous-patient.json"]
+    "mapIdentity": ["smart-sandbox-patient.json", "epic-sandbox-patient.json", "anonymous-patient.json"]
   } 
 ]

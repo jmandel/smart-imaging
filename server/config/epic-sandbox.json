@@ -30,7 +30,10 @@
   },
   "images": {
     "type": "dicom-web",
-    "lookup": "all-studies-on-server",
+    "lookup": "studies-by-mrn",
+    "mrn": [
+      "identifier.where(type.text = 'EPIC').value"
+    ],
     "endpoint": "http://orthanc:8042/dicom-web",
     "authentication": {
       "type": "http-basic",
