@@ -309,14 +309,14 @@
         <div class="content-box study-sidebar">
           {#if !studyLoaded}
             <h2>Imaging Studies</h2>
-            {#each imagingStudies as study, i}
+            {#each imagingStudies || [] as study, i}
               <button class="hotkey-button" disabled={studyDownloading} value={study.address} on:click={() => fetchStudy(study)}
                 >Fetch {study.modality}
                   <span class="hotkey">{i + 1}</span>
                 </button
               >
             {/each}
-            {#if imagingStudies.length === 0}
+            {#if imagingStudies?.length === 0}
               <em>No studies available</em>
             {/if}
           {:else}
