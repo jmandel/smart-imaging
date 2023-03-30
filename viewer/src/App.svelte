@@ -34,7 +34,7 @@
     };
   } = null;
 
-  let imagingStudies: StudyToFetch[] = [];
+  let imagingStudies: StudyToFetch[] | null = null;
   async function fetchPatient(client: Client) {
     try {
       const patient = await client.patient.read();
