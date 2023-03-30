@@ -195,7 +195,7 @@ export class IntrospectionEpic extends Introspection {
 
   allowsImaging(introspected: IntrospectionResponse): boolean {
     const scopes = introspected.scope.split(/\s+/);
-    return ["patient/Patient.read"].some((s) => scopes.includes(s));
+    return ["patient/DiagnosticReport.read", "patient/ImagingStudy.read"].some((s) => scopes.includes(s));
   }
 }
 
