@@ -1,0 +1,71 @@
+name: Deploy Server to k8s
+on:
+- push
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@master
+    - name: start minikube
+      id: minikube
+      uses: medyagh/setup-minikube@master
+    - name: Try the cluster !
+      run: kubectl get pods -A
+    - name: Set up Minikube
+      run: |
+        export SHELL=/bin/bash
+        curl -JLO "https://github.com/FiloSottile/mkcert/releases/download/v1.4.4/mkcert-v1.4.4-linux-amd64"
+        echo '6d31c65b03972c6dc4a14ab429f2928300518b26503f58723e532d1b0a3bbb52  mkcert-v1.4.4-linux-amd64' | sha256sum -c
+        chmod +x mkcert-v*-linux-amd64
+        sudo cp mkcert-v*-linux-amd64 /usr/local/bin/mkcert
+        mkcert -key-file key.pem  -cert-file cert.pem "*.imaging-local.argo.run" "imaging-local.argo.run"
+        echo $(minikube ip)    imaging-local.argo.run | sudo tee -a /etc/hosts
+        echo $(minikube ip)    launcher.imaging-local.argo.run | sudo tee -a /etc/hosts
+        kubectl -n kube-system create secret tls mkcert \
+            --key key.pem \
+            --cert cert.pem
+        echo "kube-system/mkcert" | minikube addons configure ingress
+        minikube addons enable ingress
+    - name: Build Images
+      run: |
+        export SHELL=/bin/bash
+        eval $(minikube -p minikube docker-env)
+        docker pull ghcr.io/jmandel/smart-launcher-v2:latest
+        docker tag ghcr.io/jmandel/smart-launcher-v2:latest argonautcontainerregistry.azurecr.io/smartonfhir/smart-launcher-2:latest
+        cd viewer
+        npm ci
+        npm run build --  --base=/app
+        mv dist ../server/public
+        cd ../server
+        docker build -t argonautcontainerregistry.azurecr.io/imaging-proxy:latest .
+        echo -n "verifying images:"
+        docker images
+    - name: Launch Minikube Stack
+      run: |
+        export SHELL=/bin/bash
+        cd server
+        kubectl apply -f k8s/base.yml -f k8s/minikube.yml
+    - uses: actions/setup-node@v3
+      with:
+        node-version: 16
+    - name: Install playwright
+      working-directory: ./playwright
+      run: |
+        npm ci
+        npx playwright install chromium --with-deps
+    - name: Wait for sample data then run playwright
+      working-directory: ./playwright      
+      run: |
+        while [[ "$(curl -s https://argonaut:argonaut@imaging.argo.run/orthanc/tools/find -d '{\"Level\":\"Study\",\"Query\":{\"PatientName\":\"Kshlerin*\"}}' | wc -c)" -lt "20" ]]; do
+          curl -k -vvv https://argonaut:argonaut@imaging-local.argo.run/orthanc/studies || true
+          # kubectl -n smart-imaging-access get pods
+          # kubectl -n smart-imaging-access describe pods
+          # kubectl -n smart-imaging-access logs  deployments/orthanc | tail -n 10 || true
+          # kubectl -n smart-imaging-access logs  deployments/reference | tail -n 10 || true
+          # kubectl -n smart-imaging-access logs  deployments/reference -c sample-loader | tail -n 10  || true
+          echo "waiting for orthanc server"
+          sleep 10
+        done
+        npx playwright test
+
+
