@@ -49,12 +49,12 @@ jobs:
       with:
         node-version: 16
     - name: Install playwright
-      working-directory: ./playwright
+      working-directory: ./integration
       run: |
         npm ci
         npx playwright install chromium --with-deps
     - name: Wait for sample data then run playwright
-      working-directory: ./playwright      
+      working-directory: ./integration
       run: |
         while [[ "$(curl -s https://argonaut:argonaut@imaging.argo.run/orthanc/tools/find -d '{\"Level\":\"Study\",\"Query\":{\"PatientName\":\"Kshlerin*\"}}' | wc -c)" -lt "20" ]]; do
           curl -k -vvv https://argonaut:argonaut@imaging-local.argo.run/orthanc/studies || true
