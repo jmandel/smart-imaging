@@ -1,6 +1,5 @@
-name: Deploy Server to k8s
-on:
-- push
+name: Run integration tests from app -> proxy -> dicom server
+on: [push, pull_request]
 jobs:
   build:
     runs-on: ubuntu-latest
