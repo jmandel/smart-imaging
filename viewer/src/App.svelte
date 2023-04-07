@@ -208,7 +208,9 @@
 
   function parseStudyMetadata(study: Uint8Array[]) {
     cornerstoneWADOImageLoader.wadouri.fileManager.purge();
-    console.log("Purged")
+    cornerstoneWADOImageLoader.wadouri.dataSetCacheManager.purge();
+    console.log("Purged previous studies from cache")
+
     const instances: InstanceDetails[] = study.map((dicomData) => {
       const imageId = cornerstoneWADOImageLoader.wadouri.fileManager.add(new Blob([dicomData]));
       const dataSet = dicomParser.parseDicom(dicomData);
