@@ -198,11 +198,15 @@ This section provides a step-by-step guide for setting up the SMART Imaging proj
 
 ```
 minikube start
-mkcert -install  "*.imaging-local.argo.run" "imaging-local.argo.run"
+mkcert -install \
+  -key-file imaging-local-key.pem \
+  -cert-file imaging-local-cert.pem \
+  "*.imaging-local.argo.run" \
+  "imaging-local.argo.run"
 kubectl -n kube-system create secret tls mkcert \
-    --key _wildcard.argo.run-key.pem \
-    --cert _wildcard.argo.run.pem
-minikube addons configure ingress # enter 'kube-system/mkcert'
+    --key imaging-local-key.pem \
+    --cert imaging-local-cert.pem
+echo "kube-system/mkcert" | minikube addons configure ingress
 minikube addons enable ingress
 echo $(minikube ip)    imaging-local.argo.run | sudo tee -a /etc/hosts
 echo $(minikube ip)    launcher.imaging-local.argo.run | sudo tee -a /etc/hosts

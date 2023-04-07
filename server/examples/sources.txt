@@ -1,2 +1,0 @@
-https://github.com/jmandel/my-health-data/raw/master/wrist-low-res.tgz
-https://github.com/jmandel/my-health-data/raw/master/mri-brain-2020.tgz
