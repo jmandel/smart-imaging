@@ -37,23 +37,23 @@
   },
   {
     "url": "https://github.com/jmandel/smart-imaging/releases/download/v0.0.1/77654033_20010101.tgz",
-    "mapidentity": ["smart-sandbox-patient.json"]
+    "mapIdentity": ["smart-sandbox-patient.json"]
   },
   {
     "url": "https://github.com/jmandel/smart-imaging/releases/download/v0.0.1/85123652_20000101.tgz",
-    "mapidentity": ["smart-sandbox-patient.json"]
+    "mapIdentity": ["smart-sandbox-patient.json"]
   },
   {
     "url": "https://github.com/jmandel/smart-imaging/releases/download/v0.0.1/98890234_20010101.tgz",
-    "mapidentity": ["smart-sandbox-patient.json"]
+    "mapIdentity": ["smart-sandbox-patient.json"]
   },
   {
     "url": "https://github.com/jmandel/smart-imaging/releases/download/v0.0.1/98890234_20030505_CT.tgz",
-    "mapidentity": ["smart-sandbox-patient.json"]
+    "mapIdentity": ["smart-sandbox-patient.json"]
   },
   {
     "url": "https://github.com/jmandel/smart-imaging/releases/download/v0.0.1/98890234_20030505_MR.tgz",
-    "mapidentity": ["smart-sandbox-patient.json"]
+    "mapIdentity": ["smart-sandbox-patient.json"]
   }
 
 ]
