@@ -76,6 +76,7 @@
         uid: r.identifier[0].value.slice(8),
         address: r.contained[0].address,
         modality: r.modality[0].code,
+        description: r.description || r.modality[0].code
       }));
     console.log("Images", images, imagingStudies);
   }
@@ -242,6 +243,7 @@
     address: string;
     uid: string;
     modality: string;
+    description?: string;
   }
   let studyDownloading = false;
   async function fetchStudy({ address, uid }: StudyToFetch) {
@@ -313,8 +315,10 @@
             <h2>Imaging Studies</h2>
             {#each imagingStudies || [] as study, i}
               <button class="hotkey-button" disabled={studyDownloading} value={study.address} on:click={() => fetchStudy(study)}
-                >Fetch {study.modality}
-                  <span class="hotkey">{i + 1}</span>
+                >{study.description}
+                  {#if i + 1 < 10}
+                    <span class="hotkey">{i + 1}</span>
+                  {/if}
                 </button
               >
             {/each}

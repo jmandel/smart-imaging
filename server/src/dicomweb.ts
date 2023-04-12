@@ -85,7 +85,7 @@ async function formatResource(
     referrer: {
       display: formatName(q[TAGS.REFERRING_PHYSICIAN_NAME]?.Value?.[0]?.Alphabetic),
     },
-    description: q[TAGS.STUDY_DESCRIPTION]?.Value?.[0] ?? q[TAGS.STUDY_ID]?.Value?.[0] ?? "unknown",
+    description: q[TAGS.STUDY_DESCRIPTION]?.Value?.[0] ?? undefined,
     numberOfSeries: q[TAGS.NUMBER_OF_SERIES]?.Value?.[0],
     numberOfInstances: q[TAGS.NUMBER_OF_INSTANCES]?.Value?.[0],
     contained: [
