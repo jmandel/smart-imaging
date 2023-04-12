@@ -142,6 +142,9 @@ async function main() {
   const examples = (await readJson("sources.json")) as Array<{ url: string; mapIdentity: string[] }>;
 
   for (const [index, example] of examples.entries()) {
+    if (!example.mapIdentity?.length){
+      continue;
+    }
     await ensureDir(scratchDir);
     Deno.chdir(scratchDir);
 
