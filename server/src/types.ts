@@ -39,9 +39,11 @@ export enum TAGS {
   STUDY_ID = "00200010",
   NUMBER_OF_SERIES = "00201206",
   NUMBER_OF_INSTANCES = "00201208",
+  STUDY_DESCRIPTION = "00081030"
 }
 
 export type QidoResponse = {
+  // deno-lint-ignore no-explicit-any
   [k in TAGS]: { Value: any[] };
 }[];
 

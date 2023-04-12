@@ -243,7 +243,7 @@
   },
   "npm": {
     "specifiers": {
-      "fhirpath": "fhirpath@3.3.1"
+      "fhirpath": "fhirpath@3.3.2"
     },
     "packages": {
       "@lhncbc/ucum-lhc@4.1.8": {
@@ -311,6 +311,16 @@
       },
       "fhirpath@3.3.1": {
         "integrity": "sha512-uWSLPs8VBQsn3aGUs52KaXXPGQLATbz+0FbqxmLCz84uK58nWKBSznwQHmiZY0K5L2ioiZ9GXvRtMrb+OqVzjw==",
+        "dependencies": {
+          "@lhncbc/ucum-lhc": "@lhncbc/ucum-lhc@4.1.8",
+          "antlr4": "antlr4@4.9.3",
+          "commander": "commander@2.20.3",
+          "date-fns": "date-fns@1.30.1",
+          "js-yaml": "js-yaml@3.14.1"
+        }
+      },
+      "fhirpath@3.3.2": {
+        "integrity": "sha512-7+H8B8p1le18tLXd1UCVFPSRirp9dTY8o1a+KOYQNcWb1dCze9X3zkDA3e7CXZ63+npY0G/sEvz4TJflVbNADg==",
         "dependencies": {
           "@lhncbc/ucum-lhc": "@lhncbc/ucum-lhc@4.1.8",
           "antlr4": "antlr4@4.9.3",

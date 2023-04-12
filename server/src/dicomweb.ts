@@ -1,6 +1,6 @@
 import { routerOpts } from "./config.ts";
 import { fhirpath, jose, oak, Router } from "./deps.ts";
-import { AppState, FhirResponse, Identifier, Patient, QidoResponse, TAGS } from "./types.ts";
+import { AppState, FhirResponse, Patient, QidoResponse, TAGS } from "./types.ts";
 
 const ephemeralKey = new Uint8Array(32);
 crypto.getRandomValues(ephemeralKey);
@@ -85,7 +85,7 @@ async function formatResource(
     referrer: {
       display: formatName(q[TAGS.REFERRING_PHYSICIAN_NAME]?.Value?.[0]?.Alphabetic),
     },
-    description: q[TAGS.STUDY_ID]?.Value?.[0],
+    description: q[TAGS.STUDY_DESCRIPTION]?.Value?.[0] ?? q[TAGS.STUDY_ID]?.Value?.[0] ?? "unknown",
     numberOfSeries: q[TAGS.NUMBER_OF_SERIES]?.Value?.[0],
     numberOfInstances: q[TAGS.NUMBER_OF_INSTANCES]?.Value?.[0],
     contained: [
@@ -142,13 +142,15 @@ export class DicomProvider {
   }
 
   async lookupStudies(patient?: Patient, ehrBaseUrl?: string): Promise<FhirResponse> {
-    let query = ``;
+    const query: Record<string, string> = {
+      includefield: "StudyDescription",
+    };
     if (this.config.lookup === "studies-by-mrn" && patient) {
       const mrnPaths = this.config.mrn ?? ["identifier.where(type.coding.code='MR').value"];
       const mrn = mrnPaths.map((p) => fhirpath.evaluate(patient, p)[0]).filter((x) => !!x)?.[0];
-      query = `PatientID=${mrn}`;
+      query["PatientID"] = mrn;
     }
-    const qido = new URL(`${this.config.endpoint}/studies?${query}`);
+    const qido = new URL(`${this.config.endpoint}/studies?${new URLSearchParams(query).toString()}`);
     console.log("Q", qido);
     const studies: QidoResponse = await fetch(qido, {
       headers: {

@@ -1,18 +1,12 @@
 <script lang="ts">
   export let open: boolean = false;
-  import { settings, settingsJson } from "./settings";
+  import { settings, settingsJson, settingsResettable } from "./settings";
 
   let editableSettings: string;
 
-  function ingestSettings($settings) {
+  function ingestSettings(_$settings?) {
     editableSettings = $settingsJson;
-    console.log("Assigned editable from store");
   }
-
-  function discardChanges() {
-    editableSettings = $settingsJson
-  }
-
 
   function factoryReset() {
     settings.factoryReset()
@@ -35,8 +29,12 @@
               open = false;
             }}>Save Settings</button
           >
-          <button on:click={() => { discardChanges(); open = false; }}>Discard changes</button>
-          <button on:click={factoryReset}>Reset all to defaults</button>
+          <button on:click={() => { ingestSettings(); open = false; }}>Discard changes</button>
+          <button on:click={factoryReset} disabled={!$settingsResettable}>
+            {#if settings.factoryUpdatesAvailable()}
+              !
+            {/if}
+            Reset all to defaults</button>
         </div>
       </div>
     </div>
