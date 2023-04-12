@@ -15,7 +15,7 @@ mindmap
       FHIR US Core<br>GET /Patient, etc
     Imaging Subsystem
       FHIR<br>GET /ImagingStudy
-      WADO<br>GET /studies/:id
+        WADO<br>GET /studies/:id
     App Workflow
       Authorize
       Query FHIR
