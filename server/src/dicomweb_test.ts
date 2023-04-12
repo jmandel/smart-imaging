@@ -72,7 +72,7 @@ Deno.test("Dicom Web", async (t) => {
     asserts.assertEquals(url.host, "your.dicom-web.endpoint");
 
     let params = Array.from(new URLSearchParams(url.search).entries());
-    asserts.assertEquals(params.length, 0);
+    asserts.assertEquals(params.length, 1);
 
     fetchStub = mock.stub(
       globalThis,
@@ -99,7 +99,7 @@ Deno.test("Dicom Web", async (t) => {
     asserts.assertEquals(url.host, "your.dicom-web.endpoint");
 
     params = Array.from(new URLSearchParams(url.search).entries());
-    asserts.assertEquals(params.length, 1);
+    asserts.assertEquals(params.length, 2);
   });
 
   const goodToken = await dicomweb.signStudyUid("1.2.3", testPatient.id);
