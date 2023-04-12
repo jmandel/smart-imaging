@@ -47,9 +47,9 @@ interface DicomWebResult {
 export function formatName(name: string): string | undefined {
   const names = name
     ? name
-        .split("^")
-        .map((n) => n.trim())
-        .filter((n) => !!n)
+      .split("^")
+      .map((n) => n.trim())
+      .filter((n) => !!n)
     : undefined;
 
   return names ? names.slice(-1)[0] + " " + names.slice(0, -1).join(" ") : undefined;
@@ -68,7 +68,7 @@ async function formatResource(
   q: QidoResponse[number],
   patientId: string | undefined,
   proxyBaseUrl: string,
-  ehrBaseUrl?: string
+  ehrBaseUrl?: string,
 ): Promise<FhirResponse["entry"][number]["resource"]> {
   const uid = q[TAGS.STUDY_UID].Value[0];
   const studyDateTime = formatDate(q[TAGS.STUDY_DATE].Value?.[0], q[TAGS.STUDY_TIME].Value?.[0]);
@@ -111,7 +111,9 @@ async function formatResource(
 export class DicomProvider {
   constructor(public config: DicomProviderConfig, public proxyBase: string) {}
   authHeader() {
-    return `Basic ${btoa(`${this.config.authentication.username}:${this.config.authentication.password}`)}`;
+    return `Basic ${
+      btoa(`${this.config.authentication.username}:${this.config.authentication.password}`)
+    }`;
   }
   delayed(activity: "lookup" | "retrieve") {
     const configKey = (activity + "Until") as "lookupUntil" | "retrieveUntil";
@@ -128,7 +130,8 @@ export class DicomProvider {
     const proxied = await fetch(`${this.config.endpoint}/studies/${path}`, {
       headers: {
         authorization: this.authHeader(),
-        accept: reqHeaders.get("accept") || `multipart/related; type=application/dicom; transfer-syntax=*`,
+        accept: reqHeaders.get("accept") ||
+          `multipart/related; type=application/dicom; transfer-syntax=*`,
       },
     });
     const headers: Record<string, string> = {};
@@ -150,7 +153,9 @@ export class DicomProvider {
       const mrn = mrnPaths.map((p) => fhirpath.evaluate(patient, p)[0]).filter((x) => !!x)?.[0];
       query["PatientID"] = mrn;
     }
-    const qido = new URL(`${this.config.endpoint}/studies?${new URLSearchParams(query).toString()}`);
+    const qido = new URL(
+      `${this.config.endpoint}/studies?${new URLSearchParams(query).toString()}`,
+    );
     console.log("Q", qido);
     const studies: QidoResponse = await fetch(qido, {
       headers: {
@@ -162,13 +167,15 @@ export class DicomProvider {
       entry: await Promise.all(
         studies.map(async (q) => ({
           resource: await formatResource(q, patient?.id, this.proxyBase, ehrBaseUrl),
-        }))
+        })),
       ),
     };
   }
 }
 
-const wadoStudyRetrieve = async (ctx: oak.RouterContext<"/studies/:uid(.*)", { [k: string]: string }, AppState>) => {
+const wadoStudyRetrieve = async (
+  ctx: oak.RouterContext<"/studies/:uid(.*)", { [k: string]: string }, AppState>,
+) => {
   const { delayed, secondsRemaining } = ctx.state.imagesProvider.delayed("retrieve");
   if (delayed) {
     ctx.response.headers.set("Retry-After", secondsRemaining!.toString());
@@ -176,7 +183,10 @@ const wadoStudyRetrieve = async (ctx: oak.RouterContext<"/studies/:uid(.*)", { [
     return;
   }
 
-  const { headers, body } = await ctx.state.imagesProvider.evaluateDicomWeb(`${ctx.params.uid}`, ctx.request.headers);
+  const { headers, body } = await ctx.state.imagesProvider.evaluateDicomWeb(
+    `${ctx.params.uid}`,
+    ctx.request.headers,
+  );
   Object.entries(headers).forEach(([k, v]) => {
     ctx.response.headers.set(k, v);
   });
@@ -187,14 +197,17 @@ export const _internals = {
   wadoStudyRetrieve,
 };
 
-const wadoInnerRouter = new Router<AppState>(routerOpts).get("/studies/:uid(.*)", (ctx) =>
-  _internals.wadoStudyRetrieve(ctx)
+const wadoInnerRouter = new Router<AppState>(routerOpts).get(
+  "/studies/:uid(.*)",
+  (ctx) => _internals.wadoStudyRetrieve(ctx),
 );
 
 export const wadoRouter = new Router<AppState>(routerOpts)
   .all("/:studyPatientBinding/studies/:uid/(.*)?", async (ctx, next) => {
     const token = await jose.compactVerify(ctx.params.studyPatientBinding, ephemeralKey);
-    const { uid, patient }: { uid: string; patient: string } = JSON.parse(new TextDecoder().decode(token.payload));
+    const { uid, patient }: { uid: string; patient: string } = JSON.parse(
+      new TextDecoder().decode(token.payload),
+    );
 
     if (ctx.state.disableAccessControl) {
       return next();

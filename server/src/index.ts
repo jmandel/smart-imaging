@@ -1,4 +1,4 @@
-import { oak, Application, jose, Router } from "./deps.ts";
+import { Application, jose, oak, Router } from "./deps.ts";
 
 import { AppState } from "./types.ts";
 
@@ -13,7 +13,10 @@ import { fhirRouter } from "./fhir.ts";
 const tenantConfig = new Map<string, unknown>();
 for (const f of Deno.readDirSync("config")) {
   if (f.name.match(/\.json$/)) {
-    tenantConfig.set(f.name.replace(/\.json$/, ""), JSON.parse(Deno.readTextFileSync(path.resolve("config", f.name))));
+    tenantConfig.set(
+      f.name.replace(/\.json$/, ""),
+      JSON.parse(Deno.readTextFileSync(path.resolve("config", f.name))),
+    );
   }
 }
 
@@ -33,7 +36,8 @@ multiTenantRouter.all("/:dyn(dyn)?/:tenant/(fhir|wado)/:suffix(.*)", async (ctx,
     console.log("In scope", tenant);
   }
   const authzForTenant = Introspection.create(tenant.authorization);
-  const { patient, ehrBaseUrl, introspected, disableAccessControl } = await authzForTenant.assignAuthorization(ctx);
+  const { patient, ehrBaseUrl, introspected, disableAccessControl } = await authzForTenant
+    .assignAuthorization(ctx);
 
   console.log("Set up config to", patient, introspected, disableAccessControl, ehrBaseUrl);
   ctx.state.ehrBaseUrl = ehrBaseUrl;
@@ -44,7 +48,7 @@ multiTenantRouter.all("/:dyn(dyn)?/:tenant/(fhir|wado)/:suffix(.*)", async (ctx,
   const reqBase = baseUrl;
   ctx.state.imagesProvider = new DicomProvider(
     tenant.images,
-    reqBase + (ctx.params.dyn ? `/dyn/${ctx.params.dyn}` : ``) + `/${ctx.params.tenant}`
+    reqBase + (ctx.params.dyn ? `/dyn/${ctx.params.dyn}` : ``) + `/${ctx.params.tenant}`,
   );
   await next();
 });
@@ -64,7 +68,7 @@ app.use(
     .get("/", (ctx) => {
       ctx.response.redirect("https://github.com/jmandel/smart-imaging#getting-started");
     })
-    .routes()
+    .routes(),
 );
 
 multiTenantRouter.use("/:dyn(dyn)?/:tenant/fhir", fhirRouter.routes());

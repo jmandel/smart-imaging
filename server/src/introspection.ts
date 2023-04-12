@@ -17,8 +17,13 @@ type IntrospectionConfigMock = IntrospectionConfigBase & {
   disabled?: boolean;
 };
 
-type IntrospectionConfig = IntrospectionConfigBase &
-  ({ type: "smart-on-fhir" } | { type: "smart-on-fhir-with-epic-bugfixes" } | IntrospectionConfigMock);
+type IntrospectionConfig =
+  & IntrospectionConfigBase
+  & (
+    | { type: "smart-on-fhir" }
+    | { type: "smart-on-fhir-with-epic-bugfixes" }
+    | IntrospectionConfigMock
+  );
 
 interface SmartConfiguration {
   token_endpoint: string;
@@ -48,9 +53,12 @@ export class Introspection {
 
   async getSmartConfiguration() {
     if (!this.cache.smartConfiguration) {
-      const smartConfig = await fetch(`${this.config.fhirBaseUrl}/.well-known/smart-configuration`, {
-        headers: { accept: "application/json" },
-      });
+      const smartConfig = await fetch(
+        `${this.config.fhirBaseUrl}/.well-known/smart-configuration`,
+        {
+          headers: { accept: "application/json" },
+        },
+      );
       const smartConfigJson = await smartConfig.json();
       this.cache.smartConfiguration = smartConfigJson as SmartConfiguration;
     }
@@ -112,7 +120,10 @@ export class Introspection {
     return (await introspectionResponse.json()) as IntrospectionResponse;
   }
 
-  async resolvePatient(introspected: IntrospectionResponse, accessToken: string): Promise<Patient | null> {
+  async resolvePatient(
+    introspected: IntrospectionResponse,
+    accessToken: string,
+  ): Promise<Patient | null> {
     if (!introspected.patient) {
       return null;
     }
@@ -178,7 +189,10 @@ export class IntrospectionEpic extends Introspection {
     super(config);
   }
 
-  async resolvePatient(introspected: IntrospectionResponse, accessToken: string): Promise<Patient | null> {
+  async resolvePatient(
+    introspected: IntrospectionResponse,
+    accessToken: string,
+  ): Promise<Patient | null> {
     if (!introspected.sub) {
       return null;
     }
@@ -195,7 +209,9 @@ export class IntrospectionEpic extends Introspection {
 
   allowsImaging(introspected: IntrospectionResponse): boolean {
     const scopes = introspected.scope.split(/\s+/);
-    return ["patient/DiagnosticReport.read", "patient/ImagingStudy.read"].some((s) => scopes.includes(s));
+    return ["patient/DiagnosticReport.read", "patient/ImagingStudy.read"].some((s) =>
+      scopes.includes(s)
+    );
   }
 }
 
@@ -219,7 +235,7 @@ export class IntrospectionMock extends Introspection {
         patient: this.mockConfig.patient!.id,
         scope: "patient/ImagingStudy.rs",
       },
-      ehrBaseUrl: this.mockConfig.fhirBaseUrl
+      ehrBaseUrl: this.mockConfig.fhirBaseUrl,
     };
   }
 }

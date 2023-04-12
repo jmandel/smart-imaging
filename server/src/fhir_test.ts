@@ -14,7 +14,10 @@ Deno.test("FHIR", async (t) => {
       path,
       state: {
         authorizedForPatient: testPatient,
-        imagesProvider: { lookupStudies: async (p: any) => fhirBundle, delayed: ()=>({delayed: false})},
+        imagesProvider: {
+          lookupStudies: async (p: any) => fhirBundle,
+          delayed: () => ({ delayed: false }),
+        },
       },
     });
 
