@@ -7,7 +7,7 @@ test('Approve and view images', async ({ page }) => {
   await page.getByRole('combobox').selectOption({label: '(Local) SMART Sandbox + Imaging Server'});
   await page.getByRole('button', { name: 'Connect' }).click();
   await page.getByRole('button', { name: 'Approve' }).click();
-  await page.getByRole('button', { name: 'Fetch CR' }).first().click();
+  await page.getByRole('button', { name: 'Upper Extremity' }).first().click();
 
   const studyPanel = await page.locator(".study-sidebar");
   await expect(studyPanel).toContainText("Danae");
