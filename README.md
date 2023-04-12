@@ -13,7 +13,7 @@ mindmap
       Authorization
       Token Introspection
       FHIR US Core<br>GET /Patient, etc
-    Imaging Server
+    Imaging Subsystem
       FHIR<br>GET /ImagingStudy
       WADO<br>GET /studies/:id
     App Workflow
