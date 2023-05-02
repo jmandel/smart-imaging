@@ -247,12 +247,12 @@ export class IntrospectionJwtVerifyTODO extends Introspection {
 }
 
 export class IntrospectionMeditech extends Introspection {
-
   // Workaround #1 -- one client can't introspect another client's
   // token, so we're using the same client ID in app + resource server
   // (This will prevent real-world deployment.)
 
   // Workaround #2 -- no patient id is supplied in introspection response
+  // so we're just trusting whatever appears in the URL
   // (This will prevent real-world deployment.)
 
   // Workaround #3 -- using app's access token to fetch patient
@@ -262,7 +262,7 @@ export class IntrospectionMeditech extends Introspection {
   // app's credential with client_basic to call introspection
   // (This is non-standard but won't prevent real-world deployment.)
 
-  private queriedPatientId: string | null = null;
+  private insecurePatientId: string | null = null;
 
   constructor(public meditechConfig: IntrospectionConfigMeditech) {
     super(meditechConfig);
@@ -284,14 +284,18 @@ export class IntrospectionMeditech extends Introspection {
     });
 
     const ret = (await introspectionResponse.json()) as IntrospectionResponse;
-    ret.patient = this.queriedPatientId!;
+    ret.patient = this.insecurePatientId!;
     return ret;
   }
 
   async assignAuthorization(
     ctx: oak.Context<AppState, Record<string, any>>,
   ): Promise<AuthorizationAssignment> {
-    this.queriedPatientId = ctx.request.url.searchParams.get("patient")?.split("/").slice(-1)[0]!;
+    this.insecurePatientId = ctx.request.url.searchParams.get("patient")?.split("/").slice(-1)[0]!;
+    if (!this.insecurePatientId) {
+      const studyPatientBinding = ctx.request.url.pathname.match(/\/wado\/([^/]+)/)?.[1]!;
+      this.insecurePatientId = jose.decodeJwt(studyPatientBinding).patient as string;
+    }
     return await super.assignAuthorization(ctx);
   }
 
@@ -303,7 +307,9 @@ export class IntrospectionMeditech extends Introspection {
 
   allowsImaging(introspected: IntrospectionResponse): boolean {
     const scopes = introspected.scope.split(/\s+/);
-    return ["patient/DiagnosticReport.read", "patient/ImagingStudy.read"].some((s) => scopes.includes(s));
+    return ["patient/DiagnosticReport.read", "patient/ImagingStudy.read"].some((s) =>
+      scopes.includes(s)
+    );
   }
 }
 
