@@ -4,7 +4,8 @@
     "mapIdentity": [
       "smart-sandbox-patient.json",
       "epic-sandbox-patient.json",
-      "anonymous-patient.json"
+      "anonymous-patient.json",
+      "meditech-sandbox-patient.json"
     ]
   },
   {
@@ -12,7 +13,8 @@
     "mapIdentity": [
       "smart-sandbox-patient.json",
       "epic-sandbox-patient.json",
-      "anonymous-patient.json"
+      "anonymous-patient.json",
+      "meditech-sandbox-patient.json"
     ]
   },
   {

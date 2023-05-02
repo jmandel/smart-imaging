@@ -1,0 +1,23 @@
+{
+  "authorization": {
+    "type": "smart-on-fhir-with-meditech-bugfixes",
+    "fhirBaseUrl": "https://devmtx-restapis-stable.meditech.com/v1/uscore/R4",
+
+    "scope": null,
+    "client": {
+      "client_id": "ArgoImageConf@1c1d31421a5043018ea84ccbc34bd3a0",
+      "client_secret": "Au-4e_DqSlKRzNMhPFgNTw=="
+    }
+  },
+  "images": {
+    "type": "dicom-web",
+    "lookup": "studies-by-mrn",
+    "mrn": [ "identifier[0].value" ],
+    "endpoint": "http://orthanc:8042/dicom-web",
+    "authentication": {
+      "type": "http-basic",
+      "username": "argonaut",
+      "password": "argonaut"
+    }
+  }
+}

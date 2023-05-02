@@ -1,0 +1,21 @@
+{
+  "resourceType": "Patient",
+  "id": "1763e05e-207d-5367-acd1-fd1cb51a69ab",
+  "identifier": [
+    {
+      "system": "https://devmtx-restapis-stable.meditech.com",
+      "value": "1763e05e-207d-5367-acd1-fd1cb51a69ab"
+    }
+  ],
+  "active": true,
+  "name": [
+    {
+      "family": "Murray",
+      "given": [
+        "Dallas"
+      ]
+    }
+  ],
+  "gender": "male",
+  "birthDate": "1985-09-04"
+}

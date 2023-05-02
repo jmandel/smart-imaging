@@ -20,8 +20,8 @@
       "clientSecret": "Au-4e_DqSlKRzNMhPFgNTw==",
       "pkceMode": "required",
       "clinicalServer": "https://devmtx-restapis-stable.meditech.com/v1/uscore/R4",
-      "imagingServer": "https://imaging.argo.run/open/fhir",
-      "scope": "launch/patient patient/Patient.read patient/AllergyIntolerance.read patient/Condition.read patient/MedicationRequest.read"
+      "imagingServer": "https://imaging.argo.run/meditech-sandbox/fhir",
+      "scope": "launch/patient patient/Patient.read patient/AllergyIntolerance.read patient/Condition.read patient/DiagnosticReport.read patient/MedicationRequest.read openid fhirUser"
     },
     {
       "label": "(Local) SMART Sandbox + Unauthenticated Imaging Server",

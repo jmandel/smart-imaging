@@ -17,17 +17,25 @@ type IntrospectionConfigMock = IntrospectionConfigBase & {
   disabled?: boolean;
 };
 
+type IntrospectionConfigMeditech = IntrospectionConfigBase & {
+  type: "smart-on-fhir-with-meditech-bugfixes";
+  client: { client_secret: string };
+};
+
 type IntrospectionConfig =
   & IntrospectionConfigBase
   & (
     | { type: "smart-on-fhir" }
     | { type: "smart-on-fhir-with-epic-bugfixes" }
+    | IntrospectionConfigMeditech
     | IntrospectionConfigMock
   );
 
 interface SmartConfiguration {
   token_endpoint: string;
   introspection_endpoint: string;
+  issuer?: string;
+  jwks_uri?: string;
 }
 
 interface AuthorizationAssignment {
@@ -42,6 +50,8 @@ export class Introspection {
   static create(config: IntrospectionConfig): Introspection {
     if (config.type === "smart-on-fhir-with-epic-bugfixes") {
       return new IntrospectionEpic(config);
+    } else if (config.type === "smart-on-fhir-with-meditech-bugfixes") {
+      return new IntrospectionMeditech(config);
     } else if (config.type === "mock") {
       return new IntrospectionMock(config);
     } else {
@@ -104,7 +114,6 @@ export class Introspection {
     });
 
     const accessTokenJson = await accessTokenResponse.json();
-    console.log("AT", accessTokenJson.access_token);
     return accessTokenJson as { access_token: string; expires_in: number };
   }
 
@@ -150,6 +159,7 @@ export class Introspection {
       "patient/ImagingStudy.rs",
     ].some((s) => scopes.includes(s));
   }
+
   async getAuthorizationContext(tokenToIntrospect: string) {
     const accessToken = (await this.getAccessToken()).access_token;
     const introspected = await this.introspect(tokenToIntrospect, accessToken);
@@ -165,7 +175,6 @@ export class Introspection {
       throw "Cannot authorize without an access token";
     }
     const { patient, introspected } = await this.getAuthorizationContext(tokenToIntrospect);
-    console.log(patient, introspected);
     if (!introspected.active) {
       throw "Must have an active access token";
     }
@@ -212,6 +221,89 @@ export class IntrospectionEpic extends Introspection {
     return ["patient/DiagnosticReport.read", "patient/ImagingStudy.read"].some((s) =>
       scopes.includes(s)
     );
+  }
+}
+
+export class IntrospectionJwtVerifyTODO extends Introspection {
+  constructor(config: IntrospectionConfig) {
+    super(config);
+  }
+  async _TODOgetAuthorizationContext(tokenToIntrospect: string) {
+    const { issuer, jwks_uri } = await this.getSmartConfiguration();
+    if (!issuer || !jwks_uri) {
+      throw "Access token decoding requires issuer and jwks_uri to be discoverable";
+    }
+
+    const jwks = await (await fetch(jwks_uri)).json();
+    const keySet = await jose.createLocalJWKSet(jwks);
+    const { payload, _protectedHeader } = (await jose.jwtVerify(tokenToIntrospect, keySet)) as any;
+
+    const introspectionResponse = {
+      active: true,
+      patient: payload as any, // TODO finish this
+    };
+    return introspectionResponse;
+  }
+}
+
+export class IntrospectionMeditech extends Introspection {
+
+  // Workaround #1 -- one client can't introspect another client's
+  // token, so we're using the same client ID in app + resource server
+  // (This will prevent real-world deployment.)
+
+  // Workaround #2 -- no patient id is supplied in introspection response
+  // (This will prevent real-world deployment.)
+
+  // Workaround #3 -- using app's access token to fetch patient
+  // (This would likely prevent real-world deployment.)
+
+  // Workaround #4 -- no backend services; so here, we're using
+  // app's credential with client_basic to call introspection
+  // (This is non-standard but won't prevent real-world deployment.)
+
+  private queriedPatientId: string | null = null;
+
+  constructor(public meditechConfig: IntrospectionConfigMeditech) {
+    super(meditechConfig);
+  }
+
+  async introspect(tokenToIntrospect: string, _accessToken: string) {
+    const authorization = `Basic ${
+      btoa(
+        `${this.config.client.client_id}:${this.meditechConfig.client.client_secret}`,
+      )
+    }`;
+    const introspectionResponse = await fetch(await this.introspectionEndpoint(), {
+      method: "POST",
+      headers: {
+        "content-type": "application/x-www-form-urlencoded",
+        authorization,
+      },
+      body: new URLSearchParams([["token", tokenToIntrospect]]).toString(),
+    });
+
+    const ret = (await introspectionResponse.json()) as IntrospectionResponse;
+    ret.patient = this.queriedPatientId!;
+    return ret;
+  }
+
+  async assignAuthorization(
+    ctx: oak.Context<AppState, Record<string, any>>,
+  ): Promise<AuthorizationAssignment> {
+    this.queriedPatientId = ctx.request.url.searchParams.get("patient")?.split("/").slice(-1)[0]!;
+    return await super.assignAuthorization(ctx);
+  }
+
+  async getAuthorizationContext(tokenToIntrospect: string) {
+    const introspected = await this.introspect(tokenToIntrospect, "");
+    const patient = await this.resolvePatient(introspected, tokenToIntrospect);
+    return { patient, introspected };
+  }
+
+  allowsImaging(introspected: IntrospectionResponse): boolean {
+    const scopes = introspected.scope.split(/\s+/);
+    return ["patient/DiagnosticReport.read", "patient/ImagingStudy.read"].some((s) => scopes.includes(s));
   }
 }
 
