@@ -24,12 +24,13 @@
         <div class="col col-4 content-box fullheight">
           <textarea bind:value={editableSettings} />
           <button
+            disabled={$settingsJson === editableSettings}
             on:click={() => {
-              $settings = { source: editableSettings, ...JSON.parse(editableSettings) };
+              $settings = JSON.parse(editableSettings);
               open = false;
             }}>Save Settings</button
           >
-          <button on:click={() => { ingestSettings(); open = false; }}>Discard changes</button>
+          <button on:click={() => { ingestSettings(); open = false; }}>Close</button>
           <button on:click={factoryReset} disabled={!$settingsResettable}>
             {#if settings.factoryUpdatesAvailable()}
               !

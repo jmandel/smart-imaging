@@ -1,7 +1,6 @@
 import { derived, writable } from "svelte/store";
 
 export interface Settings {
-  source?: string;
   clientConfig: {
     label: string;
     clinicalServer: string;
@@ -25,7 +24,6 @@ export const settings = {
   factoryUpdatesAvailable() {
     const lastFactory = window.localStorage.getItem("settingsFactory");
     const thisFactory = JSON.stringify(factorySettings());
-    console.log("calc", lastFactory, thisFactory, lastFactory === thisFactory);
     return lastFactory && thisFactory !== lastFactory;
   },
   factoryReset() {
@@ -34,7 +32,7 @@ export const settings = {
 };
 
 settings.subscribe((s: Settings) => {
-  const toStore = JSON.stringify({ ...s, source: undefined });
+  const toStore = JSON.stringify(s);
   const toStoreFactory = JSON.stringify(factorySettings());
 
   if (toStore === toStoreFactory) {
@@ -50,10 +48,10 @@ settings.subscribe((s: Settings) => {
 });
 
 export const settingsJson = derived(settings, ($settings: Settings) =>
-  JSON.stringify({ ...$settings, source: undefined }, null, 2)
+  JSON.stringify({ ...$settings}, null, 2)
 );
 
 export const settingsResettable = derived(
   settings,
-  ($settings: Settings) => JSON.stringify({ ...$settings, source: undefined }) !== JSON.stringify(factorySettings())
+  ($settings: Settings) => JSON.stringify({ ...$settings}) !== JSON.stringify(factorySettings())
 );

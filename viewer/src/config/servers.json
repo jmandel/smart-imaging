@@ -15,11 +15,13 @@
       "scope": "launch/patient patient/*.rs"
     },
     {
-      "label": "Epic R4 Sandbox",
-      "clientId": "03093d97-c676-4ffb-9932-4326981acde1",
-      "clinicalServer": "https://fhir.epic.com/interconnect-fhir-oauth/api/FHIR/R4",
-      "imagingServer": "https://imaging.argo.run/epic-sandbox/fhir",
-      "scope": "launch/patient patient/Patient.read patient/ImagingStudy.read patient/AllergyIntolerance.read patient/Condition.read"
+      "label": "Meditech Sandbox",
+      "clientId": "ArgoImageConf@1c1d31421a5043018ea84ccbc34bd3a0",
+      "clientSecret": "Au-4e_DqSlKRzNMhPFgNTw==",
+      "pkceMode": "required",
+      "clinicalServer": "https://devmtx-restapis-stable.meditech.com/v1/uscore/R4",
+      "imagingServer": "https://imaging.argo.run/open/fhir",
+      "scope": "launch/patient patient/Patient.read patient/AllergyIntolerance.read patient/Condition.read patient/MedicationRequest.read"
     },
     {
       "label": "(Local) SMART Sandbox + Unauthenticated Imaging Server",
