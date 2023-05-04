@@ -15,6 +15,13 @@
       "scope": "launch/patient patient/*.rs"
     },
     {
+      "label": "Cerner R4 Sandbox",
+      "clientId": "e2b9049c-c559-4014-9333-478ab04e24da",
+      "clinicalServer": "https://fhir-myrecord.cerner.com/r4/ec2458f2-1e24-41c8-b71b-0e701af7583d",
+      "imagingServer": "https://imaging.argo.run/cerner-sandbox/fhir",
+      "scope": "launch/patient patient/Patient.read patient/AllergyIntolerance.read patient/Condition.read patient/MedicationRequest.read"
+    },
+    {
       "label": "Epic R4 Sandbox",
       "clientId": "03093d97-c676-4ffb-9932-4326981acde1",
       "clinicalServer": "https://fhir.epic.com/interconnect-fhir-oauth/api/FHIR/R4",
