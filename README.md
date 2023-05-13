@@ -39,10 +39,7 @@ To work with the SMART Imaging project, you should have the following prerequisi
 
 * Knowledge of [SMART, OAuth2, and token introspection](https://hl7.org/fhir/smart-app-launch/)
 
-* Familiarity with [FHIR](https://hl7.org/fhir/) and [DICOM](https://www.dicomstandard.org/current) standards 
-
-
- 
+* Familiarity with [FHIR](https://hl7.org/fhir/) and [DICOM](https://www.dicomstandard.org/current) standards  
 
 # Understanding the SMART Imaging Demo Stack
 
