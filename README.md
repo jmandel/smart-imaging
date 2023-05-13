@@ -116,7 +116,6 @@ Pre-specified configurations are controlled by files in [`./server/config`](./se
 
 Dynamic configurations are useful when you want to get started testing SMART Imaging with your own EHR's authorization server. You can rapidly iterate on your config settings until you get something that works. These paths start with  `/dyn/:encoded`, where the variable component is `base64urlencode(JSON.stringify(config))`. For example, you might test out configurations dynamically until you're happy with the behavior; then you might email a few colleagues your base URL so they can test things out, and eventually you might submit a PR to this repository so a wider audience can reproduce this behavior.
 
-
 #### Example of `/dyn/:encoded`
 
 You can easily create your own dynamically configured endpoint using
