@@ -19,10 +19,12 @@ jobs:
     - uses: azure/login@v1
       with:
         creds: ${{ secrets.AZURE_CREDENTIALS }}
-    - uses: azure/aks-set-context@v2.0
+    - uses: azure/aks-set-context@v3
       with:
         cluster-name: ${{ secrets.CLUSTER_NAME }}
         resource-group: ${{ secrets.RESOURCE_GROUP }}
+        admin: 'true'
+
     - name: Build and rollout to CI
       working-directory: ./server
       run: |
