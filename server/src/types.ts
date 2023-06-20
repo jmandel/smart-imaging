@@ -28,6 +28,7 @@ export enum TAGS {
   ACCESSION_NUMBER = "00080050",
   INSTANCE_AVAILABILITY = "00080056",
   MODALITIES_IN_STUDY = "00080061",
+  MODALITY = "00080060",
   REFERRING_PHYSICIAN_NAME = "00080090",
   TIMEZONE_OFFSET_FROM_UTC = "00080201",
   RETRIEVE_URL = "00081190",
@@ -36,10 +37,16 @@ export enum TAGS {
   PATIENT_BIRTH_DATE = "00100030",
   PATIENT_SEX = "00100040",
   STUDY_UID = "0020000D",
+  SERIES_UID = "0020000E",
   STUDY_ID = "00200010",
   NUMBER_OF_SERIES = "00201206",
   NUMBER_OF_INSTANCES = "00201208",
   STUDY_DESCRIPTION = "00081030",
+  SOP_INSTANCE_UID = "00080018",
+  INSTANCE_NUMBER = "00200013",
+  SERIES_NUMBER = "00200011",
+  SERIES_DESCRIPTION = "0008103E",
+  SOP_CLASS_UID = "00080016",
 }
 
 export type QidoResponse = {
@@ -95,6 +102,17 @@ export interface FhirResponse {
       modality: Coding[];
       status: "available";
       endpoint: { reference: string };
+      series?: {
+        uid: string;
+        number?: number;
+        modality?: Coding[];
+        numberOfInstances?: number;
+        instance?: {
+          uid: string;
+          number?: number;
+          sopClass: Coding;
+        }[];
+      }[];
     };
   }[];
 }

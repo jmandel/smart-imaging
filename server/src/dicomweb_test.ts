@@ -59,6 +59,7 @@ Deno.test("Dicom Web", async (t) => {
             },
           }),
         ),
+        Promise.resolve(new Response("[]")),
       ]),
     );
 
@@ -66,7 +67,7 @@ Deno.test("Dicom Web", async (t) => {
     fetchStub.restore();
     asserts.assertEquals(result.resourceType, "Bundle");
     asserts.assertEquals(result.entry.length, 1);
-    asserts.assertEquals(fetchStub.calls.length, 1);
+    asserts.assertEquals(fetchStub.calls.length, 2);
 
     let url: URL = fetchStub.calls[0].args[0] as URL;
     asserts.assertEquals(url.host, "your.dicom-web.endpoint");
@@ -85,6 +86,7 @@ Deno.test("Dicom Web", async (t) => {
             },
           }),
         ),
+        Promise.resolve(new Response("[]")),
       ]),
     );
 
@@ -93,7 +95,7 @@ Deno.test("Dicom Web", async (t) => {
 
     asserts.assertEquals(result.resourceType, "Bundle");
     asserts.assertEquals(result.entry.length, 1);
-    asserts.assertEquals(fetchStub.calls.length, 1);
+    asserts.assertEquals(fetchStub.calls.length, 2);
 
     url = fetchStub.calls[0].args[0] as URL;
     asserts.assertEquals(url.host, "your.dicom-web.endpoint");

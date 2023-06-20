@@ -44,6 +44,11 @@ interface DicomWebResult {
   body: ReadableStream<Uint8Array>;
 }
 
+interface StudyEnriched {
+  studyQido: QidoResponse[number];
+  series?: { seriesQido: QidoResponse[number]; instances?: QidoResponse }[];
+}
+
 export function formatName(name: string): string | undefined {
   const names = name
     ? name
@@ -65,14 +70,14 @@ export function formatDate(dateString: string, timeString?: string): string | un
 }
 
 async function formatResource(
-  q: QidoResponse[number],
+  studyIn: StudyEnriched,
   patientId: string | undefined,
   proxyBaseUrl: string,
   ehrBaseUrl?: string,
 ): Promise<FhirResponse["entry"][number]["resource"]> {
+  const q = studyIn.studyQido;
   const uid = q[TAGS.STUDY_UID].Value[0];
   const studyDateTime = formatDate(q[TAGS.STUDY_DATE].Value?.[0], q[TAGS.STUDY_TIME].Value?.[0]);
-
   return {
     resourceType: "ImagingStudy",
     status: "available",
@@ -99,6 +104,24 @@ async function formatResource(
         },
       },
     ],
+    series: studyIn.series?.map((s) => ({
+      uid: s.seriesQido[TAGS.SERIES_UID].Value[0],
+      number: s.seriesQido[TAGS.SERIES_NUMBER]?.Value?.[0],
+      numberOfInstances: s.seriesQido[TAGS.NUMBER_OF_INSTANCES]?.Value?.[0],
+      title: s.seriesQido[TAGS.SERIES_DESCRIPTION]?.Value?.[0],
+      modality: s.seriesQido[TAGS.MODALITY]?.Value?.map((code: string) => ({
+        system: `http://dicom.nema.org/resources/ontology/DCM`,
+        code,
+      })) ?? undefined,
+      instance: s.instances?.map((i) => ({
+        uid: i[TAGS.SOP_INSTANCE_UID].Value[0],
+        number: i[TAGS.INSTANCE_NUMBER]?.Value?.[0],
+        sopClass: {
+          system: "urn:ietf:rfc:3986",
+          code: `urn:oid:${i[TAGS.SOP_CLASS_UID].Value[0]}`,
+        },
+      })),
+    })),
     endpoint: { reference: "#e" },
     identifier: [{ system: "urn:dicom:uid", value: `urn:oid:${uid}` }],
     modality: q[TAGS.MODALITIES_IN_STUDY].Value.map((code: string) => ({
@@ -156,20 +179,62 @@ export class DicomProvider {
     const qido = new URL(
       `${this.config.endpoint}/studies?${new URLSearchParams(query).toString()}`,
     );
-    console.log("Q", qido);
-    const studies: QidoResponse = await fetch(qido, {
+    console.log("Q", qido.href);
+
+    const matchingStudies: QidoResponse = await fetch(qido, {
       headers: {
         authorization: this.authHeader(),
       },
     }).then((q) => q.json());
+
+    const studies = await this.enrichStudies(matchingStudies);
+
     return {
       resourceType: "Bundle",
       entry: await Promise.all(
-        studies.map(async (q) => ({
-          resource: await formatResource(q, patient?.id, this.proxyBase, ehrBaseUrl),
+        studies.map(async (study) => ({
+          resource: await formatResource(study, patient?.id, this.proxyBase, ehrBaseUrl),
         })),
       ),
     };
+  }
+
+  async enrichStudies(
+    studies: QidoResponse,
+    level: "STUDY" | "SERIES" | "INSTANCE" = "SERIES",
+  ): Promise<StudyEnriched[]> {
+    return await Promise.all(studies.map(async (studyQido) => {
+      let seriesToReturn: StudyEnriched["series"] = [];
+      if (level !== "STUDY") {
+        const seriesForStudy: QidoResponse = await fetch(
+          `${this.config.endpoint}/studies/${studyQido[TAGS.STUDY_UID].Value[0]}/series`,
+          {
+            headers: {
+              authorization: this.authHeader(),
+            },
+          },
+        ).then((q) => q.json());
+
+        seriesToReturn = await Promise.all(seriesForStudy.map(async (seriesQido) => {
+          let instancesForSeries: QidoResponse = [];
+          if (level === "INSTANCE") {
+            instancesForSeries = await fetch(
+              `${this.config.endpoint}/studies/${studyQido[TAGS.STUDY_UID].Value[0]}/series/${
+                seriesQido[TAGS.SERIES_UID].Value[0]
+              }/instances`,
+              {
+                headers: {
+                  authorization: this.authHeader(),
+                },
+              },
+            ).then((q) => q.json());
+          }
+          return { seriesQido, instances: level === "INSTANCE" ? instancesForSeries : undefined };
+        }));
+      }
+
+      return { studyQido, series: level !== "STUDY" ? seriesToReturn : undefined };
+    }));
   }
 }
 
