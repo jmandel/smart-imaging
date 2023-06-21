@@ -105,7 +105,7 @@ export interface FhirResponse {
       series?: {
         uid: string;
         number?: number;
-        modality?: Coding[];
+        modality?: Coding;
         numberOfInstances?: number;
         instance?: {
           uid: string;

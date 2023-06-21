@@ -112,7 +112,7 @@ async function formatResource(
       modality: s.seriesQido[TAGS.MODALITY]?.Value?.map((code: string) => ({
         system: `http://dicom.nema.org/resources/ontology/DCM`,
         code,
-      })) ?? undefined,
+      }))[0],
       instance: s.instances?.map((i) => ({
         uid: i[TAGS.SOP_INSTANCE_UID].Value[0],
         number: i[TAGS.INSTANCE_NUMBER]?.Value?.[0],
