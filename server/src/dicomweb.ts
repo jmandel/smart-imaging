@@ -92,7 +92,7 @@ async function formatResource(
     },
     description: q[TAGS.STUDY_DESCRIPTION]?.Value?.[0] ?? undefined,
     numberOfSeries: q[TAGS.NUMBER_OF_SERIES]?.Value?.[0],
-    numberOfInstances: q[TAGS.NUMBER_OF_INSTANCES]?.Value?.[0],
+    numberOfInstances: q[TAGS.NUMBER_OF_INSTANCES_IN_STUDY]?.Value?.[0],
     contained: [
       {
         resourceType: "Endpoint",
@@ -107,7 +107,7 @@ async function formatResource(
     series: studyIn.series?.map((s) => ({
       uid: s.seriesQido[TAGS.SERIES_UID].Value[0],
       number: s.seriesQido[TAGS.SERIES_NUMBER]?.Value?.[0],
-      numberOfInstances: s.seriesQido[TAGS.NUMBER_OF_INSTANCES]?.Value?.[0],
+      numberOfInstances: s.seriesQido[TAGS.NUMBER_OF_INSTANCES_IN_SERIES]?.Value?.[0],
       title: s.seriesQido[TAGS.SERIES_DESCRIPTION]?.Value?.[0],
       modality: s.seriesQido[TAGS.MODALITY]?.Value?.map((code: string) => ({
         system: `http://dicom.nema.org/resources/ontology/DCM`,
