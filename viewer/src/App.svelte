@@ -11,6 +11,7 @@
   import { authorize, client, type Client } from "./lib/smart";
   import Settings from "./Settings.svelte";
   import { settings } from "./settings";
+  import type { fhirclient } from "fhirclient/lib/types";
 
   function beginAuthorization() {
     authorize($settings?.clientConfig[selectedServerIndex]);
@@ -69,7 +70,8 @@
       $client = null;
     }
 
-    const images = await client.images();
+    const imageClient = await client.forCapability("smart-imaging-access");
+    const images = await imageClient.patient.request("ImagingStudy") as fhirclient.FHIR.Bundle;
     imagingStudies = images.entry
       .map((e) => e.resource)
       .map((r) => ({

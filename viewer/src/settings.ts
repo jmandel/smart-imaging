@@ -3,8 +3,7 @@ import { derived, writable } from "svelte/store";
 export interface Settings {
   clientConfig: {
     label: string;
-    clinicalServer: string;
-    imagingServer: string;
+    iss: string;
     clientId: string;
     scope?: string;
   }[];
