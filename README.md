@@ -214,7 +214,7 @@ docker build -t argonautcontainerregistry.azurecr.io/smartonfhir/smart-launcher-
 cd ..
 
 git clone https://github.com/jmandel/smart-imaging-api
-cd smart-imaging-api
+cd smart-imaging-api/server
 docker build -t argonautcontainerregistry.azurecr.io/imaging-proxy .
 
 kubectl apply -f k8s/base.yml -f k8s/minikube.yml

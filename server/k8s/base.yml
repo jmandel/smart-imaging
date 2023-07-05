@@ -190,6 +190,12 @@ spec:
       - name: launcher
         image: argonautcontainerregistry.azurecr.io/smartonfhir/smart-launcher-2:latest
         imagePullPolicy: IfNotPresent
+        env:
+        - name: ASSOCIATED_ENDPOINTS
+          valueFrom:
+            configMapKeyRef:
+              name: proxy-config
+              key: LAUNCHER_ASSOCIATED_ENDPOINTS
         ports:
         - containerPort: 80
           name: launcher-web
