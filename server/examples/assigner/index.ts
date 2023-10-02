@@ -5,17 +5,14 @@ const mrn = pt.identifier.filter((i) =>
   i.type?.coding.some((c) => c.code == "MR")
 )?.[0];
 
-const command = new Deno.run({
-  //stdout: "piped",
-  //stderr: "piped",
-  cmd: [
-    "./reset-patient-identity.sh",
+const command = new Deno.Command("./reset-patient-identity.sh", {
+  args: [
     Deno.args[1],
     `${nameFamily || "unknown"}^${nameGiven || "unknown"}^^^`,
     `${mrn.value}`,
     `${mrn.system}`,
   ],
-});
+}).output();
 
-const status = await command.status();
+const status = await command.status;
 console.log("Status", status);

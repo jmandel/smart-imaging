@@ -39,11 +39,11 @@ async function downloadFile(url: string, dest: string) {
 }
 
 async function untarFile(file: string) {
-  const process = Deno.run({
-    cmd: ["tar", "-xzvf", file],
+  const { success } = await new Deno.Command("tar", {
+    args: ["-xzvf", file],
     stdout: "null",
-  });
-  await process.status();
+  }).output();
+  return;
 }
 
 async function uploadDicomFile(filePath: string) {
@@ -83,17 +83,17 @@ async function getNewUids(dicomFilePath: string, identityFilePath: string, prefi
 }
 
 async function getUID(filePath: string, tag: string): Promise<string> {
-  const result = await Deno.run({
-    cmd: ["dcmdump", "+P", tag, filePath],
+  const {success, stdout} = await new Deno.Command("dcmdump", {
+    args: ["+P", tag, filePath],
     stdout: "piped",
-  });
+  }).output();
 
-  const output = new TextDecoder().decode(await result.output());
+  const output = new TextDecoder().decode(stdout);
   const match = output.match(/(\[.*\])/);
   if (match) {
     return match[1].slice(1, -1);
   } else {
-    throw new Error(`Unable to find UID for tag ${tag} in file ${filePath}`);
+    throw new Error(`Unable to find UID for tag ${tag} in file ${filePath}, output=${output}${stdout}.`);
   }
 }
 
@@ -108,23 +108,21 @@ async function remapDicomFile(dicomFilePath: string, identityFilePath: string) {
   console.log("mrn", mrn);
   console.log("bday", birthDate);
 
-  const command = Deno.run({
-    cmd: [
-      path.join("..", "assigner", "reset-patient-identity-single-file.sh"),
+  const cmd = path.join("..", "assigner", "reset-patient-identity-single-file.sh");
+  const {success, code} = await new Deno.Command(cmd , {
+    args: [
       dicomFilePath,
       newUids.studyUID,
       newUids.seriesUID,
       newUids.instanceUID,
-
       `${nameFamily || "unknown"}^${nameGiven || "unknown"}^^^`,
       `${mrn.value}`,
       `${mrn.system}`,
       `${birthDate}`,
     ],
-  });
+  }).output();
 
-  const status = await command.status();
-  console.log("Status", status);
+  console.log("Success", success, "Status", code);
 }
 
 async function readJson(filePath: string) {
