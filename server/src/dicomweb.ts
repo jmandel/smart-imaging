@@ -265,11 +265,7 @@ export class DicomProvider {
 export const wadoRouter = new Hono<HonoEnv>()
   .use("/:studyPatientBinding/studies/:wadoSuffix{.*}", async (c, next) => {
     const uidParam = c.req.param("wadoSuffix").split("/")[0];
-    if (c.var.tenantAuthz.disableAuthzChecks) {
-      await next();
-      return;
-    }
-
+    
     let token;
     try {
       token = await jose.compactVerify(c.req.param("studyPatientBinding")!, ephemeralKey);
@@ -281,15 +277,20 @@ export const wadoRouter = new Hono<HonoEnv>()
       new TextDecoder().decode(token.payload),
     );
 
+    if (uid !== uidParam) {
+      throw new HTTPException(403, { message: `Study uid mismatch: ${uid} vs ${uidParam}` });
+    }
+
+    if (c.var.tenantAuthz.disableAuthzChecks) {
+      await next();
+      return;
+    }
+
     if (patient !== c.var.tenantAuthz.patient!.id) {
       throw new HTTPException(403, {
         message: `Patient mismatch: ${patient} vs ${c.var.tenantAuthz.patient!.id}`,
       });
     }
-    if (uid !== uidParam) {
-      throw new HTTPException(403, { message: `Study uid mismatch: ${uid} vs ${uidParam}` });
-    }
-
     await next();
     return;
   })
