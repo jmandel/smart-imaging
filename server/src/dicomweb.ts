@@ -266,8 +266,8 @@ export const wadoRouter = new Hono<HonoEnv>()
   .use("/:studyPatientBinding/studies/:wadoSuffix{.*}", async (c, next) => {
     const uidParam = c.req.param("wadoSuffix").split("/")[0];
     if (c.var.tenantAuthz.disableAuthzChecks) {
-      // await next();
-      // return;
+      await next();
+      return;
     }
 
     let token;
