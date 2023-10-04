@@ -1,63 +1,46 @@
 import * as asserts from "https://deno.land/std@0.180.0/testing/asserts.ts";
-import { oak } from "./deps.ts";
 import * as fhir from "./fhir.ts";
 
+import { Hono } from "./deps.ts";
 import { fhirBundle, testPatient } from "./fixtures.ts";
-import { AppState } from "./types.ts";
+import { HonoEnv } from "./types.ts";
+import { DicomProvider } from "./dicomweb.ts";
 
 Deno.test("FHIR", async (t) => {
-  const fhirRoutes = fhir.fhirRouter.routes();
-
-  const next = oak.testing.createMockNext();
-  const makeContext = (path: string) =>
-    oak.testing.createMockContext<string, { [k: string]: string }, AppState>({
-      path,
-      state: {
-        authorizedForPatient: testPatient,
-        imagesProvider: {
-          lookupStudies: async (p: any) => fhirBundle,
-          delayed: () => ({ delayed: false }),
-        },
-      },
-    });
-
   const cases = {
-    "/metadata": true,
-    "/metadata/": true,
-    "/Resource?patient=BAD": false,
-    [`/Resource?patient=${testPatient.id}`]: true,
-    [`Resource?patient=${testPatient.id}`]: true,
-    [`Resource?patient=BAD`]: false,
-    [`Resource`]: false,
+    "/metadata": 200,
+    "/metadata/": 404,
+    "/metadata/bad": 404,
+    "/Resource?patient=BAD": 403,
+    [`/Resource?patient=${testPatient.id}`]: 404,
+    [`/ImagingStudy?patient=${testPatient.id}`]: 200,
+    [`/ImagingStudy?patient=BAD`]: 403,
+    [`/ImagingStudy`]: 403,
+    [`/ImagingStudy?`]: 403,
+    [`/Resource`]: 403,
   };
 
-  for (const [path, valid] of Object.entries(cases)) {
-    if (valid) {
-      await t.step("Accepts ?patient for " + path, async () => {
-        const ctx = makeContext(path);
-        await fhirRoutes(ctx, next);
-        asserts.assert("OK, did not throw");
+  const app = new Hono<HonoEnv>();
+  app
+    .use("*", async (c, next) => {
+      c.set("tenantAuthz", {
+        patient: testPatient,
+        disableAuthzChecks: false,
       });
-    } else {
-      await t.step("Rejects ?patient for " + path, async () => {
-        const ctx = makeContext(path);
-        await asserts.assertRejects(async () => {
-          await fhirRoutes(ctx, next);
-        });
-      });
-    }
+      c.set("tenantImageProvider", {
+        lookupStudies: async () => await fhirBundle,
+        delayed: () => ({ delayed: false }),
+      } as unknown as DicomProvider);
+      await next();
+    })
+    .route("/fhir", fhir.fhirRouter);
+
+  for (const [path, status] of Object.entries(cases)) {
+    const response = await app.request("/fhir" + path);
+    asserts.assertEquals(
+      status,
+      response.status,
+      `Path ${path} expected ${status} but saw ${response.status}`,
+    );
   }
-
-  await t.step("Fails imaging studies with no patient", async () => {
-    const ctx = makeContext("/ImagingStudy?");
-    await asserts.assertRejects(async () => {
-      await fhirRoutes(ctx, next);
-    });
-  });
-
-  await t.step("Provides imaging studies with correct patient", async () => {
-    const ctx = makeContext("/ImagingStudy?patient=" + testPatient.id);
-    await fhirRoutes(ctx, next);
-    asserts.assertEquals(ctx.response.status, oak.Status.OK);
-  });
 });

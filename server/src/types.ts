@@ -1,19 +1,25 @@
 import type { DicomProvider } from "./dicomweb.ts";
+import { Context } from "https://deno.land/x/hono@v3.7.3/mod.ts";
 
-export interface AppState {
-  authorizedForPatient?: Patient;
+export type AppState = {tenantConfig: any, tenantAuthz: AuthorizationAssignment, tenantImageProvider: DicomProvider};
+export  type HonoEnv = {Variables: AppState};
+export type AppContext = Context<HonoEnv>
+
+export interface AuthorizationAssignment {
+  patient?: Patient;
   introspected?: IntrospectionResponse;
+  disableAuthzChecks?: boolean;
   ehrBaseUrl?: string;
-  imagesProvider: DicomProvider;
-  disableAccessControl: boolean;
 }
+
 
 export interface IntrospectionResponse {
   sub?: string;
   active: boolean;
   scope: string;
-  patient: string;
+  patient?: string;
 }
+
 
 export interface Patient {
   id: string;
