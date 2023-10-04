@@ -229,10 +229,12 @@ export class IntrospectionJwtVerifyTODO extends Introspection {
 
     const jwks = await (await fetch(jwks_uri)).json();
     const keySet = await jose.createLocalJWKSet(jwks);
+    // deno-lint-ignore no-explicit-any
     const { payload, _protectedHeader } = (await jose.jwtVerify(tokenToIntrospect, keySet)) as any;
 
     const introspectionResponse = {
       active: true,
+      // deno-lint-ignore no-explicit-any
       patient: payload as any, // TODO finish this
     };
     return introspectionResponse;

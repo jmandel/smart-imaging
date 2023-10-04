@@ -1,11 +1,5 @@
 import { fhirpath, Hono, HTTPException, jose } from "./deps.ts";
-import {
-  AppContext,
-  FhirResponse,
-  HonoEnv,
-  QidoResponse,
-  TAGS
-} from "./types.ts";
+import { AppContext, FhirResponse, HonoEnv, QidoResponse, TAGS } from "./types.ts";
 
 const ephemeralKey = new Uint8Array(32);
 crypto.getRandomValues(ephemeralKey);
@@ -141,14 +135,13 @@ export class DicomProvider {
   constructor(public config: DicomProviderConfig, public proxyBase: string) {}
   authHeader(): HeadersInit {
     if (this.config.authentication.type === "open") {
-      return {}
+      return {};
     }
-    return  {
-      "authorization": `Basic ${ btoa(`${
-        this.config.authentication.username
-      }:${
-        this.config.authentication.password}`)}`
-    }
+    return {
+      "authorization": `Basic ${
+        btoa(`${this.config.authentication.username}:${this.config.authentication.password}`)
+      }`,
+    };
   }
   delayed(activity: "lookup" | "retrieve") {
     const configKey = (activity + "Until") as "lookupUntil" | "retrieveUntil";
@@ -211,7 +204,7 @@ export class DicomProvider {
 
     const matchingStudies: QidoResponse = await fetch(qido, {
       headers: {
-        ...this.authHeader()
+        ...this.authHeader(),
       },
     }).then((q) => q.json());
 
@@ -265,7 +258,7 @@ export class DicomProvider {
 export const wadoRouter = new Hono<HonoEnv>()
   .use("/:studyPatientBinding/studies/:wadoSuffix{.*}", async (c, next) => {
     const uidParam = c.req.param("wadoSuffix").split("/")[0];
-    
+
     let token;
     try {
       token = await jose.compactVerify(c.req.param("studyPatientBinding")!, ephemeralKey);

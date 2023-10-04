@@ -65,10 +65,14 @@ Deno.test("Dicom Web", async (t) => {
       ]),
     );
 
-    let result = await d.lookupStudies({var: {tenantAuthz: {
-        patient: testPatient,
-        disableAuthzChecks: false
-    }}} as unknown as AppContext);
+    let result = await d.lookupStudies({
+      var: {
+        tenantAuthz: {
+          patient: testPatient,
+          disableAuthzChecks: false,
+        },
+      },
+    } as unknown as AppContext);
 
     fetchStub.restore();
     asserts.assertEquals(result.resourceType, "Bundle");
@@ -96,7 +100,7 @@ Deno.test("Dicom Web", async (t) => {
       ]),
     );
 
-    result = await d.lookupStudies({var: {tenantAuthz: {patient: testPatient}}} as any);
+    result = await d.lookupStudies({ var: { tenantAuthz: { patient: testPatient } } } as any);
     fetchStub.restore();
 
     asserts.assertEquals(result.resourceType, "Bundle");
@@ -121,14 +125,13 @@ Deno.test("Dicom Web", async (t) => {
         disableAuthzChecks: false,
       });
       c.set("tenantImageProvider", {
-        evaluateDicomWeb: async () => await {headers: {}, body: "OK"},
+        evaluateDicomWeb: async () => await { headers: {}, body: "OK" },
         lookupStudies: async () => await fhirBundle,
         delayed: () => ({ delayed: false }),
       } as unknown as dicomweb.DicomProvider);
       await next();
     })
     .route("/wado", dicomweb.wadoRouter);
-
 
   await t.step("Verifies path-based study token", async () => {
     const response = await app.request(`/wado/${badToken}/studies/1.2.3`);
@@ -144,5 +147,4 @@ Deno.test("Dicom Web", async (t) => {
     const response = await app.request(`/wado/${goodToken}/studies/1.2.3`);
     asserts.assertEquals(response.status, 200);
   });
-
 });

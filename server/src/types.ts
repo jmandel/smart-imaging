@@ -2,9 +2,13 @@ import type { DicomProvider } from "./dicomweb.ts";
 import { Context } from "https://deno.land/x/hono@v3.7.3/mod.ts";
 
 // deno-lint-ignore no-explicit-any
-export type AppState = {tenantConfig: any, tenantAuthz: AuthorizationAssignment, tenantImageProvider: DicomProvider};
-export  type HonoEnv = {Variables: AppState};
-export type AppContext = Context<HonoEnv>
+export type AppState = {
+  tenantConfig: any;
+  tenantAuthz: AuthorizationAssignment;
+  tenantImageProvider: DicomProvider;
+};
+export type HonoEnv = { Variables: AppState };
+export type AppContext = Context<HonoEnv>;
 
 export interface AuthorizationAssignment {
   patient?: Patient;
@@ -13,14 +17,12 @@ export interface AuthorizationAssignment {
   ehrBaseUrl?: string;
 }
 
-
 export interface IntrospectionResponse {
   sub?: string;
   active: boolean;
   scope: string;
   patient?: string;
 }
-
 
 export interface Patient {
   id: string;
