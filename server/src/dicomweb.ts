@@ -1,12 +1,10 @@
 import { fhirpath, Hono, HTTPException, jose } from "./deps.ts";
 import {
   AppContext,
-  AppState,
   FhirResponse,
   HonoEnv,
-  Patient,
   QidoResponse,
-  TAGS,
+  TAGS
 } from "./types.ts";
 
 const ephemeralKey = new Uint8Array(32);
@@ -40,7 +38,7 @@ export type DicomProviderConfig = {
   mrn?: string[];
   endpoint: string;
   authentication: {
-    type: "http-basic";
+    type: "http-basic" | "open";
     username: string;
     password: string;
   };
@@ -141,10 +139,16 @@ async function formatResource(
 
 export class DicomProvider {
   constructor(public config: DicomProviderConfig, public proxyBase: string) {}
-  authHeader() {
-    return `Basic ${
-      btoa(`${this.config.authentication.username}:${this.config.authentication.password}`)
-    }`;
+  authHeader(): HeadersInit {
+    if (this.config.authentication.type === "open") {
+      return {}
+    }
+    return  {
+      "authorization": `Basic ${ btoa(`${
+        this.config.authentication.username
+      }:${
+        this.config.authentication.password}`)}`
+    }
   }
   delayed(activity: "lookup" | "retrieve") {
     const configKey = (activity + "Until") as "lookupUntil" | "retrieveUntil";
@@ -163,7 +167,7 @@ export class DicomProvider {
   ): Promise<DicomWebResult> {
     const proxied = await fetch(`${this.config.endpoint}/studies/${path}`, {
       headers: {
-        authorization: this.authHeader(),
+        ...this.authHeader(),
         accept: reqHeaders["accept"] ||
           `multipart/related; type=application/dicom; transfer-syntax=*`,
       },
@@ -207,7 +211,7 @@ export class DicomProvider {
 
     const matchingStudies: QidoResponse = await fetch(qido, {
       headers: {
-        authorization: this.authHeader(),
+        ...this.authHeader()
       },
     }).then((q) => q.json());
 
@@ -233,9 +237,7 @@ export class DicomProvider {
         const seriesForStudy: QidoResponse = await fetch(
           `${this.config.endpoint}/studies/${studyQido[TAGS.STUDY_UID].Value[0]}/series`,
           {
-            headers: {
-              authorization: this.authHeader(),
-            },
+            headers: this.authHeader(),
           },
         ).then((q) => q.json());
 
@@ -247,9 +249,7 @@ export class DicomProvider {
                 seriesQido[TAGS.SERIES_UID].Value[0]
               }/instances`,
               {
-                headers: {
-                  authorization: this.authHeader(),
-                },
+                headers: this.authHeader(),
               },
             ).then((q) => q.json());
           }

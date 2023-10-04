@@ -1,10 +1,11 @@
+// deno-lint-ignore-file no-explicit-any
 import * as asserts from "https://deno.land/std@0.180.0/testing/asserts.ts";
 import * as mock from "https://deno.land/std@0.180.0/testing/mock.ts";
 import * as dicomweb from "./dicomweb.ts";
 
-import { fhirBundle, qidoMock, testConfig, testPatient } from "./fixtures.ts";
-import { AppContext, AppState, HonoEnv } from "./types.ts";
 import { Hono } from "./deps.ts";
+import { fhirBundle, qidoMock, testConfig, testPatient } from "./fixtures.ts";
+import { AppContext, HonoEnv } from "./types.ts";
 
 Deno.test("Dicom Web", async (t) => {
   const d = new dicomweb.DicomProvider(testConfig, "https://us.example.org");

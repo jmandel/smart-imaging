@@ -1,4 +1,3 @@
-// deno-lint-ignore-file no-explicit-any
 import { Hono, HTTPException, jose, serveStatic } from "./deps.ts";
 
 import * as path from "https://deno.land/std@0.179.0/path/mod.ts";

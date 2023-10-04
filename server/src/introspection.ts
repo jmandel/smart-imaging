@@ -1,5 +1,5 @@
-import { Hono, jose } from "./deps.ts";
-import { AppContext, AppState, AuthorizationAssignment, IntrospectionResponse, Patient } from "./types.ts";
+import { jose } from "./deps.ts";
+import { AppContext, AuthorizationAssignment, IntrospectionResponse, Patient } from "./types.ts";
 
 interface IntrospectionConfigBase {
   fhirBaseUrl: string;

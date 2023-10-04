@@ -6,7 +6,7 @@ import { fhirBundle, testPatient } from "./fixtures.ts";
 import { HonoEnv } from "./types.ts";
 import { DicomProvider } from "./dicomweb.ts";
 
-Deno.test("FHIR", async (t) => {
+Deno.test("FHIR", async (_t) => {
   const cases = {
     "/metadata": 200,
     "/metadata/": 404,
