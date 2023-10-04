@@ -1,6 +1,11 @@
-import { routerOpts } from "./config.ts";
-import { fhirpath, jose, oak, Router } from "./deps.ts";
-import { AppState, FhirResponse, Patient, QidoResponse, TAGS } from "./types.ts";
+import { fhirpath, Hono, HTTPException, jose } from "./deps.ts";
+import {
+  AppContext,
+  FhirResponse,
+  HonoEnv,
+  QidoResponse,
+  TAGS
+} from "./types.ts";
 
 const ephemeralKey = new Uint8Array(32);
 crypto.getRandomValues(ephemeralKey);
@@ -29,11 +34,11 @@ export type DicomProviderConfig = {
     lookupUntil?: number;
     retrieveUntil?: number;
   };
-  lookup: "studies-by-mrn" | "all-studies-on-server";
+  lookup: "studies-by-mrn" | "all-studies-on-server" | "studies-by-identifier";
   mrn?: string[];
   endpoint: string;
   authentication: {
-    type: "http-basic";
+    type: "http-basic" | "open";
     username: string;
     password: string;
   };
@@ -90,7 +95,8 @@ async function formatResource(
     referrer: {
       display: formatName(q[TAGS.REFERRING_PHYSICIAN_NAME]?.Value?.[0]?.Alphabetic),
     },
-    description: q[TAGS.STUDY_DESCRIPTION]?.Value?.[0] ?? q[TAGS.MODALITIES_IN_STUDY]?.Value?.join(", "),
+    description: q[TAGS.STUDY_DESCRIPTION]?.Value?.[0] ??
+      q[TAGS.MODALITIES_IN_STUDY]?.Value?.join(", "),
     numberOfSeries: q[TAGS.NUMBER_OF_SERIES]?.Value?.[0],
     numberOfInstances: q[TAGS.NUMBER_OF_INSTANCES_IN_STUDY]?.Value?.[0],
     contained: [
@@ -133,10 +139,16 @@ async function formatResource(
 
 export class DicomProvider {
   constructor(public config: DicomProviderConfig, public proxyBase: string) {}
-  authHeader() {
-    return `Basic ${
-      btoa(`${this.config.authentication.username}:${this.config.authentication.password}`)
-    }`;
+  authHeader(): HeadersInit {
+    if (this.config.authentication.type === "open") {
+      return {}
+    }
+    return  {
+      "authorization": `Basic ${ btoa(`${
+        this.config.authentication.username
+      }:${
+        this.config.authentication.password}`)}`
+    }
   }
   delayed(activity: "lookup" | "retrieve") {
     const configKey = (activity + "Until") as "lookupUntil" | "retrieveUntil";
@@ -149,11 +161,14 @@ export class DicomProvider {
     }
     return { delayed: false };
   }
-  async evaluateDicomWeb(path: string, reqHeaders: Headers): Promise<DicomWebResult> {
+  async evaluateDicomWeb(
+    path: string,
+    reqHeaders: Record<string, string>,
+  ): Promise<DicomWebResult> {
     const proxied = await fetch(`${this.config.endpoint}/studies/${path}`, {
       headers: {
-        authorization: this.authHeader(),
-        accept: reqHeaders.get("accept") ||
+        ...this.authHeader(),
+        accept: reqHeaders["accept"] ||
           `multipart/related; type=application/dicom; transfer-syntax=*`,
       },
     });
@@ -167,7 +182,9 @@ export class DicomProvider {
     return { headers, body: proxied.body! };
   }
 
-  async lookupStudies(patient?: Patient, ehrBaseUrl?: string): Promise<FhirResponse> {
+  async lookupStudies(c: AppContext): Promise<FhirResponse> {
+    const { patient, ehrBaseUrl } = c.var.tenantAuthz;
+
     const query: Record<string, string> = {
       includefield: "StudyDescription",
     };
@@ -175,15 +192,26 @@ export class DicomProvider {
       const mrnPaths = this.config.mrn ?? ["identifier.where(type.coding.code='MR').value"];
       const mrn = mrnPaths.map((p) => fhirpath.evaluate(patient, p)[0]).filter((x) => !!x)?.[0];
       query["PatientID"] = mrn;
+    } else if (this.config.lookup === "studies-by-identifier") {
+      const identifier = (
+        c.req.query("patient.identifier") ??
+          c.req.query("subject.identifier")
+      )
+        ?.split("|")?.slice(-1)?.[0];
+      if (!identifier) {
+        throw new HTTPException(403, {
+          message: `Cannot query by identifier without a valid identifier`,
+        });
+      }
+      query["PatientID"] = identifier;
     }
     const qido = new URL(
       `${this.config.endpoint}/studies?${new URLSearchParams(query).toString()}`,
     );
-    console.log("Q", qido.href);
 
     const matchingStudies: QidoResponse = await fetch(qido, {
       headers: {
-        authorization: this.authHeader(),
+        ...this.authHeader()
       },
     }).then((q) => q.json());
 
@@ -209,9 +237,7 @@ export class DicomProvider {
         const seriesForStudy: QidoResponse = await fetch(
           `${this.config.endpoint}/studies/${studyQido[TAGS.STUDY_UID].Value[0]}/series`,
           {
-            headers: {
-              authorization: this.authHeader(),
-            },
+            headers: this.authHeader(),
           },
         ).then((q) => q.json());
 
@@ -223,9 +249,7 @@ export class DicomProvider {
                 seriesQido[TAGS.SERIES_UID].Value[0]
               }/instances`,
               {
-                headers: {
-                  authorization: this.authHeader(),
-                },
+                headers: this.authHeader(),
               },
             ).then((q) => q.json());
           }
@@ -238,53 +262,51 @@ export class DicomProvider {
   }
 }
 
-const wadoStudyRetrieve = async (
-  ctx: oak.RouterContext<"/studies/:uid(.*)", { [k: string]: string }, AppState>,
-) => {
-  const { delayed, secondsRemaining } = ctx.state.imagesProvider.delayed("retrieve");
-  if (delayed) {
-    ctx.response.headers.set("Retry-After", secondsRemaining!.toString());
-    ctx.response.status = 503;
-    return;
-  }
+export const wadoRouter = new Hono<HonoEnv>()
+  .use("/:studyPatientBinding/studies/:wadoSuffix{.*}", async (c, next) => {
+    const uidParam = c.req.param("wadoSuffix").split("/")[0];
+    if (c.var.tenantAuthz.disableAuthzChecks) {
+      // await next();
+      // return;
+    }
 
-  const { headers, body } = await ctx.state.imagesProvider.evaluateDicomWeb(
-    `${ctx.params.uid}`,
-    ctx.request.headers,
-  );
-  Object.entries(headers).forEach(([k, v]) => {
-    ctx.response.headers.set(k, v);
-  });
-  ctx.response.body = body;
-};
+    let token;
+    try {
+      token = await jose.compactVerify(c.req.param("studyPatientBinding")!, ephemeralKey);
+    } catch (e) {
+      throw new HTTPException(403, { message: "Failed to validate inline token: " + e.message });
+    }
 
-export const _internals = {
-  wadoStudyRetrieve,
-};
-
-const wadoInnerRouter = new Router<AppState>(routerOpts).get(
-  "/studies/:uid(.*)",
-  (ctx) => _internals.wadoStudyRetrieve(ctx),
-);
-
-export const wadoRouter = new Router<AppState>(routerOpts)
-  .all("/:studyPatientBinding/studies/:uid/(.*)?", async (ctx, next) => {
-    const token = await jose.compactVerify(ctx.params.studyPatientBinding, ephemeralKey);
     const { uid, patient }: { uid: string; patient: string } = JSON.parse(
       new TextDecoder().decode(token.payload),
     );
 
-    if (ctx.state.disableAccessControl) {
-      return next();
+    if (patient !== c.var.tenantAuthz.patient!.id) {
+      throw new HTTPException(403, {
+        message: `Patient mismatch: ${patient} vs ${c.var.tenantAuthz.patient!.id}`,
+      });
     }
-
-    if (patient !== ctx.state.authorizedForPatient!.id) {
-      throw `Patient mismatch: ${patient} vs ${ctx.state.authorizedForPatient!.id}`;
-    }
-    if (uid !== ctx.params.uid) {
-      throw `Study uid mismatch: ${uid} vs ${ctx.params.uid}`;
+    if (uid !== uidParam) {
+      throw new HTTPException(403, { message: `Study uid mismatch: ${uid} vs ${uidParam}` });
     }
 
     await next();
+    return;
   })
-  .use("/:studyPatientBinding", wadoInnerRouter.routes());
+  .get("/:studyPatientBinding/studies/:wadoSuffix{.*}", async (c: AppContext) => {
+    const { delayed, secondsRemaining } = c.var.tenantImageProvider.delayed("retrieve");
+    if (delayed) {
+      c.res.headers.set("Retry-After", secondsRemaining!.toString());
+      c.status(503);
+      return;
+    }
+
+    const { headers, body } = await c.var.tenantImageProvider.evaluateDicomWeb(
+      c.req.param("wadoSuffix"),
+      c.req.header(),
+    );
+    Object.entries(headers).forEach(([k, v]) => {
+      c.res.headers.set(k, v);
+    });
+    return c.body(body);
+  });

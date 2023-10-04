@@ -1,5 +1,5 @@
-import { jose, oak } from "./deps.ts";
-import { AppState, IntrospectionResponse, Patient } from "./types.ts";
+import { jose } from "./deps.ts";
+import { AppContext, AuthorizationAssignment, IntrospectionResponse, Patient } from "./types.ts";
 
 interface IntrospectionConfigBase {
   fhirBaseUrl: string;
@@ -14,7 +14,7 @@ interface IntrospectionConfigBase {
 type IntrospectionConfigMock = IntrospectionConfigBase & {
   type: "mock";
   patient?: Patient;
-  disabled?: boolean;
+  disableAuthzChecks?: boolean;
 };
 
 type IntrospectionConfigMeditech = IntrospectionConfigBase & {
@@ -36,13 +36,6 @@ interface SmartConfiguration {
   introspection_endpoint: string;
   issuer?: string;
   jwks_uri?: string;
-}
-
-interface AuthorizationAssignment {
-  patient?: Patient;
-  introspected?: IntrospectionResponse;
-  disableAccessControl?: boolean;
-  ehrBaseUrl?: string;
 }
 
 export class Introspection {
@@ -169,8 +162,8 @@ export class Introspection {
     return { patient, introspected };
   }
 
-  async assignAuthorization(ctx: oak.Context<AppState>): Promise<AuthorizationAssignment> {
-    const tokenToIntrospect = ctx.request.headers.get("authorization")?.split(/bearer /i)?.[1];
+  async assignAuthorization(c: AppContext): Promise<AuthorizationAssignment> {
+    const tokenToIntrospect = c.req.header("authorization")?.split(/bearer /i)?.[1];
     if (!tokenToIntrospect) {
       throw "Cannot authorize without an access token";
     }
@@ -289,14 +282,14 @@ export class IntrospectionMeditech extends Introspection {
   }
 
   async assignAuthorization(
-    ctx: oak.Context<AppState, Record<string, any>>,
+    c: AppContext,
   ): Promise<AuthorizationAssignment> {
-    this.insecurePatientId = ctx.request.url.searchParams.get("patient")?.split("/").slice(-1)[0]!;
+    this.insecurePatientId = c.req.query("patient")?.split("/").slice(-1)[0]!;
     if (!this.insecurePatientId) {
-      const studyPatientBinding = ctx.request.url.pathname.match(/\/wado\/([^/]+)/)?.[1]!;
+      const studyPatientBinding = c.req.url.match(/\/wado\/([^/]+)/)?.[1]!;
       this.insecurePatientId = jose.decodeJwt(studyPatientBinding).patient as string;
     }
-    return await super.assignAuthorization(ctx);
+    return await super.assignAuthorization(c);
   }
 
   async getAuthorizationContext(tokenToIntrospect: string) {
@@ -319,18 +312,13 @@ export class IntrospectionMock extends Introspection {
   }
 
   // deno-lint-ignore require-await
-  async assignAuthorization(_ctx: oak.Context<AppState>) {
-    if (this.mockConfig.disabled) {
-      return {
-        disableAccessControl: true,
-      };
-    }
-
+  async assignAuthorization(_c: AppContext): Promise<AuthorizationAssignment> {
     return {
+      disableAuthzChecks: this.mockConfig.disableAuthzChecks,
       patient: this.mockConfig.patient!,
       introspected: {
         active: true,
-        patient: this.mockConfig.patient!.id,
+        patient: this.mockConfig.patient?.id,
         scope: "patient/ImagingStudy.rs",
       },
       ehrBaseUrl: this.mockConfig.fhirBaseUrl,

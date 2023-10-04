@@ -1,9 +1,11 @@
+// deno-lint-ignore-file no-explicit-any
 import * as asserts from "https://deno.land/std@0.180.0/testing/asserts.ts";
 import * as mock from "https://deno.land/std@0.180.0/testing/mock.ts";
-import { oak } from "./deps.ts";
 import * as dicomweb from "./dicomweb.ts";
 
-import { qidoMock, testConfig, testPatient } from "./fixtures.ts";
+import { Hono } from "./deps.ts";
+import { fhirBundle, qidoMock, testConfig, testPatient } from "./fixtures.ts";
+import { AppContext, HonoEnv } from "./types.ts";
 
 Deno.test("Dicom Web", async (t) => {
   const d = new dicomweb.DicomProvider(testConfig, "https://us.example.org");
@@ -38,7 +40,7 @@ Deno.test("Dicom Web", async (t) => {
       ]),
     );
 
-    const result = await d.evaluateDicomWeb("1.2.3", new Headers());
+    const result = await d.evaluateDicomWeb("1.2.3", {});
     asserts.assertEquals(result.headers["content-type"], "A");
     asserts.assertEquals(result.headers["content-length"], "B");
     asserts.assertExists(result.headers["cache-control"]);
@@ -63,7 +65,11 @@ Deno.test("Dicom Web", async (t) => {
       ]),
     );
 
-    let result = await d.lookupStudies();
+    let result = await d.lookupStudies({var: {tenantAuthz: {
+        patient: testPatient,
+        disableAuthzChecks: false
+    }}} as unknown as AppContext);
+
     fetchStub.restore();
     asserts.assertEquals(result.resourceType, "Bundle");
     asserts.assertEquals(result.entry.length, 1);
@@ -73,7 +79,7 @@ Deno.test("Dicom Web", async (t) => {
     asserts.assertEquals(url.host, "your.dicom-web.endpoint");
 
     let params = Array.from(new URLSearchParams(url.search).entries());
-    asserts.assertEquals(params.length, 1);
+    asserts.assertEquals(params.length, ["includefield", "PatientID"].length);
 
     fetchStub = mock.stub(
       globalThis,
@@ -90,7 +96,7 @@ Deno.test("Dicom Web", async (t) => {
       ]),
     );
 
-    result = await d.lookupStudies(testPatient);
+    result = await d.lookupStudies({var: {tenantAuthz: {patient: testPatient}}} as any);
     fetchStub.restore();
 
     asserts.assertEquals(result.resourceType, "Bundle");
@@ -106,41 +112,37 @@ Deno.test("Dicom Web", async (t) => {
 
   const goodToken = await dicomweb.signStudyUid("1.2.3", testPatient.id);
   const badToken = "BAD";
-  const dicomRoutes = dicomweb.wadoRouter.routes();
 
-  const handler = mock.stub(dicomweb._internals, "wadoStudyRetrieve", async (ctx) => {
-    ctx.response.status = 200;
-  });
+  const app = new Hono<HonoEnv>();
+  app
+    .use("*", async (c, next) => {
+      c.set("tenantAuthz", {
+        patient: testPatient,
+        disableAuthzChecks: false,
+      });
+      c.set("tenantImageProvider", {
+        evaluateDicomWeb: async () => await {headers: {}, body: "OK"},
+        lookupStudies: async () => await fhirBundle,
+        delayed: () => ({ delayed: false }),
+      } as unknown as dicomweb.DicomProvider);
+      await next();
+    })
+    .route("/wado", dicomweb.wadoRouter);
 
-  const next = oak.testing.createMockNext();
-  const makeContext = (path: string) =>
-    oak.testing.createMockContext({
-      path,
-      state: {
-        authorizedForPatient: testPatient,
-      },
-    });
 
   await t.step("Verifies path-based study token", async () => {
-    await asserts.assertRejects(async () => {
-      const ctx = makeContext(`/${badToken}/studies/1.2.3`);
-      await dicomRoutes(ctx, next);
-    });
+    const response = await app.request(`/wado/${badToken}/studies/1.2.3`);
+    asserts.assertEquals(response.status, 403);
   });
 
   await t.step("Does not route WADO requests without a study", async () => {
-    const ctx = makeContext(`/${goodToken}`);
-    await dicomRoutes(ctx, next);
-    const response = await ctx.response;
-    asserts.assertEquals(response.status, oak.Status.NotFound);
+    const response = await app.request(`/wado/${goodToken}`);
+    asserts.assertEquals(response.status, 404);
   });
 
   await t.step("Responds to WADO requests when valid binding token is present", async () => {
-    const ctx = makeContext(`/${goodToken}/studies/1.2.3`);
-    await dicomRoutes(ctx, next);
-    const response = await ctx.response;
-    asserts.assertEquals(response.status, oak.Status.OK);
+    const response = await app.request(`/wado/${goodToken}/studies/1.2.3`);
+    asserts.assertEquals(response.status, 200);
   });
 
-  handler.restore();
 });

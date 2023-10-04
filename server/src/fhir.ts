@@ -1,36 +1,34 @@
-import { Router } from "./deps.ts";
-import { AppState } from "./types.ts";
-import { routerOpts } from "./config.ts";
+// import { Router } from "./deps.ts";
 
-export const fhirRouter = new Router<AppState>(routerOpts);
-fhirRouter.all("/:fhir([A-Z].*)", async (ctx, next) => {
-  let patient = ctx.request.url.searchParams.get("patient");
+import { Hono, HTTPException } from "./deps.ts";
+import { HonoEnv } from "./types.ts";
+
+export const fhirRouter = new Hono<HonoEnv>()
+fhirRouter.use("/:fhir{[A-Z][^/]*/*}", async (c, next) => {
+
+  let patient = c.req.query("patient");
   if (patient?.startsWith("Patient/")) {
     patient = patient.split("Patient/")[1];
   }
 
-  if (ctx.state.disableAccessControl) {
-    return await next();
+  if (!c.var.tenantAuthz.disableAuthzChecks && (
+    !patient || patient !== c.var.tenantAuthz.patient!.id)) {
+    throw new HTTPException(403, { message: 'Patient parameter is required and must match authz context' })
   }
-  if (!patient || patient !== ctx.state.authorizedForPatient!.id) {
-    throw `Patient parameter is required and must match authz context`;
-  }
+
   await next();
 });
 
 // deno-lint-ignore require-await
-fhirRouter.get("/", async (ctx) => {
-  ctx.response.body = {
+fhirRouter.get("/", async (c) => c.json({
     Welcome: "To the SMART Imaging Access Demo Server",
     Configuration:
       "This Demo hosts many virtual FHIR endpoints with different configurations, to assist in testing. See https://github.com/jmandel/smart-imaging#flexible-behaviors",
     SeeAlso: [`./metadata`, `./ImagingStudy?patient={}`],
-  };
-});
+}));
 
 // deno-lint-ignore require-await
-fhirRouter.get("/metadata", async (ctx) => {
-  ctx.response.body = {
+fhirRouter.get("/metadata", async (c) => c.json({
     resourceType: "CapabilityStatement",
     status: "active",
     date: new Date().toISOString(),
@@ -60,24 +58,17 @@ fhirRouter.get("/metadata", async (ctx) => {
         ],
       },
     ],
-  };
-});
+  }));
 
-fhirRouter.get("/ImagingStudy", async (ctx) => {
-  const patient = ctx.request.url.searchParams.get("patient");
-  if (!patient) {
-    throw "Need a Patient";
-  }
-  const p = ctx.state.authorizedForPatient;
-
-  const { delayed, secondsRemaining } = ctx.state.imagesProvider.delayed("lookup");
+fhirRouter.get("/ImagingStudy", async (c) => {
+  const { delayed, secondsRemaining } = c.var.tenantImageProvider.delayed("lookup");
   if (delayed) {
-    ctx.response.headers.set("Retry-After", secondsRemaining!.toString());
-    ctx.response.status = 503;
+    c.res.headers.set("Retry-After", secondsRemaining!.toString());
+    c.status(503)
     return;
   }
 
-  const studies = await ctx.state.imagesProvider.lookupStudies(p, ctx.state.ehrBaseUrl);
-  ctx.response.headers.set("content-type", "application/fhir+json");
-  ctx.response.body = JSON.stringify(studies, null, 2);
+  const studies = await c.var.tenantImageProvider.lookupStudies(c);
+  c.res.headers.set("content-type", "application/fhir+json");
+  return c.json(studies)
 });
