@@ -23,7 +23,7 @@ async function waitForOrthancServer() {
       }
     } catch (error) {
       // just keep waiting
-      console.log("Error waaiting", new Date().toISOString(), error)
+      console.log("Error waiting", new Date().toISOString(), error)
     }
     console.log("Waiting for DICOM server");
     await new Promise((resolve) => setTimeout(resolve, 5000));

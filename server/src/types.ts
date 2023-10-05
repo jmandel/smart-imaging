@@ -1,10 +1,25 @@
 import type { DicomProvider } from "./dicomweb.ts";
 import { Context } from "https://deno.land/x/hono@v3.7.3/mod.ts";
+import type { Authorizer } from "./introspection.ts";
 
-// deno-lint-ignore no-explicit-any
+export type Justification = string;
+
+export interface QueryRestrictions {
+  tenantKey: string;
+  byPatientId?: string;
+  byPatientIdentifier?: Identifier;
+}
+
 export type AppState = {
-  tenantConfig: any;
-  tenantAuthz: AuthorizationAssignment;
+  tenant: {
+    key: string;
+    // deno-lint-ignore no-explicit-any
+    config: any;
+    baseUrl: string;
+  };
+  authorizer: Authorizer;
+  query: QueryRestrictions;
+  // tenantAuthz: AuthorizationAssignment;
   tenantImageProvider: DicomProvider;
 };
 export type HonoEnv = { Variables: AppState };
@@ -25,9 +40,10 @@ export interface IntrospectionResponse {
 }
 
 export interface Patient {
+  resourceType?: "Patient",
   id: string;
-  identifier: Identifier[];
-  name: { given: string[]; family: string; text: string }[];
+  identifier?: Identifier[];
+  name?: { given: string[]; family: string; text: string }[];
 }
 
 export enum TAGS {
@@ -68,7 +84,7 @@ export interface Identifier {
   system?: string;
   value: string;
   display?: string;
-  type: CodeableConcept;
+  type?: CodeableConcept;
 }
 
 export interface CodeableConcept {

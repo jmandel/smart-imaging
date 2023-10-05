@@ -26,7 +26,7 @@
     "cornerstone-wado-image-loader": "^4.10.0",
     "cornerstone-web-image-loader": "^2.1.1",
     "dicom-parser": "^1.8.21",
-    "fhirclient": "github:smart-on-fhir/client-js#additional-endpoints",
+    "fhirclient": "file:../../client-js",
     "lodash": "^4.17.21"
   }
 }

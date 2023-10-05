@@ -1,17 +1,17 @@
 import { fhirpath, Hono, HTTPException, jose } from "./deps.ts";
-import { AppContext, FhirResponse, HonoEnv, QidoResponse, TAGS } from "./types.ts";
+import { AppContext, FhirResponse, HonoEnv, QidoResponse, QueryRestrictions, Reference, TAGS } from "./types.ts";
 
 const ephemeralKey = new Uint8Array(32);
 crypto.getRandomValues(ephemeralKey);
 
 const signatures: Map<string, string> = new Map();
-export const signStudyUid = async (uid: string, patient?: string) => {
-  const key = `${uid}|${patient}`;
+export const signStudyUid = async (uid: string, query: QueryRestrictions) => {
+  const key = `${uid}|${JSON.stringify(query)}`;
   if (signatures.has(key)) {
     return signatures.get(key);
   }
 
-  const ret = await new jose.SignJWT({ uid, patient })
+  const ret = await new jose.SignJWT({ uid, query })
     .setIssuedAt()
     .setExpirationTime("1 day")
     .setProtectedHeader({
@@ -70,9 +70,9 @@ export function formatDate(dateString: string, timeString?: string): string | un
 
 async function formatResource(
   studyIn: StudyEnriched,
-  patientId: string | undefined,
+  patientReference: Reference,
   proxyBaseUrl: string,
-  ehrBaseUrl?: string,
+  query: QueryRestrictions
 ): Promise<FhirResponse["entry"][number]["resource"]> {
   const q = studyIn.studyQido;
   const uid = q[TAGS.STUDY_UID].Value[0];
@@ -82,8 +82,8 @@ async function formatResource(
     status: "available",
     id: q[TAGS.STUDY_UID].Value[0],
     subject: {
+      ...patientReference,
       display: formatName(q[TAGS.PATIENT_NAME]?.Value?.[0]?.Alphabetic),
-      reference: patientId ? `${ehrBaseUrl ?? ""}/Patient/${patientId}` : undefined,
     },
     started: studyDateTime,
     referrer: {
@@ -97,7 +97,7 @@ async function formatResource(
       {
         resourceType: "Endpoint",
         id: "e",
-        address: `${proxyBaseUrl}/wado/${await signStudyUid(uid, patientId)}`,
+        address: `${proxyBaseUrl}/wado/${await signStudyUid(uid, query)}`,
         connectionType: {
           system: "http://terminology.hl7.org/CodeSystem/endpoint-connection-type",
           code: "dicom-wado-rs",
@@ -176,27 +176,29 @@ export class DicomProvider {
   }
 
   async lookupStudies(c: AppContext): Promise<FhirResponse> {
-    const { patient, ehrBaseUrl } = c.var.tenantAuthz;
+    // const { patient, ehrBaseUrl } = c.var.tenantAuthz;
+    const restrictions = c.var.query;
+    const patientReference: Reference = { }
 
     const query: Record<string, string> = {
       includefield: "StudyDescription",
     };
-    if (this.config.lookup === "studies-by-mrn" && patient) {
+    if (this.config.lookup === "studies-by-mrn" && restrictions.byPatientId) {
+      const patient = await c.var.authorizer.resolvePatient(restrictions.byPatientId);
       const mrnPaths = this.config.mrn ?? ["identifier.where(type.coding.code='MR').value"];
       const mrn = mrnPaths.map((p) => fhirpath.evaluate(patient, p)[0]).filter((x) => !!x)?.[0];
+      const ehrBase = c.var.tenant?.config?.authorization?.fhirBaseUrl;
+      patientReference.reference = (ehrBase ? ehrBase + "/" : "") + "Patient/"+patient;
       query["PatientID"] = mrn;
     } else if (this.config.lookup === "studies-by-identifier") {
-      const identifier = (
-        c.req.query("patient.identifier") ??
-          c.req.query("subject.identifier")
-      )
-        ?.split("|")?.slice(-1)?.[0];
+      const identifier = restrictions.byPatientIdentifier;
+      patientReference.identifer = identifier;
       if (!identifier) {
         throw new HTTPException(403, {
           message: `Cannot query by identifier without a valid identifier`,
         });
       }
-      query["PatientID"] = identifier;
+      query["PatientID"] = identifier.value;
     }
     const qido = new URL(
       `${this.config.endpoint}/studies?${new URLSearchParams(query).toString()}`,
@@ -214,7 +216,7 @@ export class DicomProvider {
       resourceType: "Bundle",
       entry: await Promise.all(
         studies.map(async (study) => ({
-          resource: await formatResource(study, patient?.id, this.proxyBase, ehrBaseUrl),
+          resource: await formatResource(study, patientReference, this.proxyBase, restrictions),
         })),
       ),
     };
@@ -266,24 +268,20 @@ export const wadoRouter = new Hono<HonoEnv>()
       throw new HTTPException(403, { message: "Failed to validate inline token: " + e.message });
     }
 
-    const { uid, patient }: { uid: string; patient: string } = JSON.parse(
+    const { uid, query }: { uid: string; query: QueryRestrictions } = JSON.parse(
       new TextDecoder().decode(token.payload),
     );
 
     if (uid !== uidParam) {
       throw new HTTPException(403, { message: `Study uid mismatch: ${uid} vs ${uidParam}` });
     }
+    
+    try {
+      await c.var.authorizer.ensureQueryAllowed(query);
+    } catch (e) {
+      throw new HTTPException(403, { message: `Query Restrictions Mismatch` });
+    } 
 
-    if (c.var.tenantAuthz.disableAuthzChecks) {
-      await next();
-      return;
-    }
-
-    if (patient !== c.var.tenantAuthz.patient!.id) {
-      throw new HTTPException(403, {
-        message: `Patient mismatch: ${patient} vs ${c.var.tenantAuthz.patient!.id}`,
-      });
-    }
     await next();
     return;
   })

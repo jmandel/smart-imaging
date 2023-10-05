@@ -5,6 +5,7 @@ import { Hono } from "./deps.ts";
 import { fhirBundle, testPatient } from "./fixtures.ts";
 import { HonoEnv } from "./types.ts";
 import { DicomProvider } from "./dicomweb.ts";
+import { Authorizer } from "./introspection.ts";
 
 Deno.test("FHIR", async (_t) => {
   const cases = {
@@ -23,10 +24,13 @@ Deno.test("FHIR", async (_t) => {
   const app = new Hono<HonoEnv>();
   app
     .use("*", async (c, next) => {
-      c.set("tenantAuthz", {
-        patient: testPatient,
-        disableAuthzChecks: false,
+      c.set("authorizer", new Authorizer("sample-tenant", testPatient, false));
+      c.set("tenant", {
+        key: "sample-tenant",
+        config: {},
+        baseUrl: "tenant-base-url"
       });
+ 
       c.set("tenantImageProvider", {
         lookupStudies: async () => await fhirBundle,
         delayed: () => ({ delayed: false }),

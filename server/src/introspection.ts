@@ -1,5 +1,58 @@
 import { jose } from "./deps.ts";
-import { AppContext, AuthorizationAssignment, IntrospectionResponse, Patient } from "./types.ts";
+import {
+  AppContext,
+  AuthorizationAssignment,
+  IntrospectionResponse,
+  Patient,
+  QueryRestrictions
+} from "./types.ts";
+
+
+export class Authorizer {
+  constructor(public tenantKey: string, public patient?: Patient, public allowQueryiesForAnyPatient: boolean = false) { }
+  // deno-lint-ignore require-await
+  async ensureQueryAllowed(
+    req: QueryRestrictions,
+  ): Promise<boolean> {
+    const { byPatientId, byPatientIdentifier } = req;
+    if (req.tenantKey !== this.tenantKey) {
+      throw "Cannot share authorizations across tenants"
+    }
+
+    if (this.allowQueryiesForAnyPatient) {
+      return true;
+    }
+    if (byPatientId && this.patient?.id === byPatientId) {
+      return true;
+    }
+    if (
+      //TODO decide whether to restrict access by Identifier.system
+      byPatientIdentifier && this.patient?.identifier?.some((i) => i.value === byPatientIdentifier.value)
+    ) {
+      return true;
+    }
+
+    throw "Not allowed";
+  }
+  // deno-lint-ignore require-await
+  async resolvePatient(patientId: string) {
+    if (this.patient?.id === patientId) {
+      return this.patient
+    }
+    throw "Cannot resolve patient " + patientId + " in this context."
+  }
+}
+
+// interface FhirClient {
+//   request(url: string): FhirResponse;
+// }
+
+// class PatientResolver {
+//   constructor(public patient?: Patient, client?: FhirClient) {}
+//   async canQuery(_authzRequest: AuthzRequestToQuery): Promise<AuthzReceipt> {
+//     return await "always-ok";
+//   }
+// }
 
 interface IntrospectionConfigBase {
   fhirBaseUrl: string;
@@ -160,6 +213,23 @@ export class Introspection {
     const patient = await this.resolvePatient(introspected, accessToken);
     console.log("P", patient);
     return { patient, introspected };
+  }
+
+  async makeAuthorizer(c: AppContext): Promise<Authorizer> {
+    const tenantKey = c.var.tenant.key;
+    try {
+      const { patient, disableAuthzChecks } = await this.assignAuthorization(c);
+      return new Authorizer(tenantKey, patient, !!disableAuthzChecks);
+    } catch {
+      return {
+        tenantKey,
+        resolvePatient(){throw `Not Authorized`},
+        allowQueryiesForAnyPatient: false,
+        ensureQueryAllowed(_deets) {
+          throw `Not authorized`;
+        },
+      };
+    }
   }
 
   async assignAuthorization(c: AppContext): Promise<AuthorizationAssignment> {

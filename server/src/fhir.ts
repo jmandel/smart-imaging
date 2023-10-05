@@ -1,25 +1,45 @@
 // import { Router } from "./deps.ts";
 
 import { Hono, HTTPException } from "./deps.ts";
-import { HonoEnv } from "./types.ts";
+import { AppState, HonoEnv, Identifier, QueryRestrictions } from "./types.ts";
 
 export const fhirRouter = new Hono<HonoEnv>();
 fhirRouter.use("/:fhir{[A-Z][^/]*/*}", async (c, next) => {
-  let patient = c.req.query("patient");
-  if (patient?.startsWith("Patient/")) {
-    patient = patient.split("Patient/")[1];
+  const tenantKey = c.var.tenant.key;
+  const queryRestrictions: QueryRestrictions = { tenantKey };
+
+  let patient = c.req.query("patient") ?? c.req.query("subject");
+  const patientIdentifierInput = c.req.query("patient.identifier") ??
+    c.req.query("subject.identifier");
+
+  if (patient) {
+    if (patient?.startsWith("Patient/")) {
+      patient = patient.split("Patient/")[1];
+    }
+    queryRestrictions.byPatientId = patient;
+  }
+  if (patientIdentifierInput) {
+    const patientIdentifierInputParts = patientIdentifierInput.split("|");
+    const patientIdentifier: Identifier = patientIdentifierInputParts.length === 2
+      ? {
+        system: patientIdentifierInputParts[0],
+        value: patientIdentifierInputParts[1],
+      }
+      : {
+        value: patientIdentifierInputParts[0],
+      };
+    queryRestrictions.byPatientIdentifier = patientIdentifier;
   }
 
-  if (
-    !c.var.tenantAuthz.disableAuthzChecks && (
-      !patient || patient !== c.var.tenantAuthz.patient!.id
-    )
-  ) {
+  try {
+    await c.var.authorizer.ensureQueryAllowed(queryRestrictions);
+  } catch (e) {
     throw new HTTPException(403, {
       message: "Patient parameter is required and must match authz context",
     });
   }
 
+  c.set("query", queryRestrictions);
   await next();
 });
 

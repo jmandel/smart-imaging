@@ -5,6 +5,7 @@ import * as dicomweb from "./dicomweb.ts";
 
 import { Hono } from "./deps.ts";
 import { fhirBundle, qidoMock, testConfig, testPatient } from "./fixtures.ts";
+import { Authorizer } from "./introspection.ts";
 import { AppContext, HonoEnv } from "./types.ts";
 
 Deno.test("Dicom Web", async (t) => {
@@ -49,8 +50,9 @@ Deno.test("Dicom Web", async (t) => {
     fetchStub.restore();
   });
 
-  await t.step("Dicom Web Qido Lookup", async () => {
-    let fetchStub = mock.stub(
+  let fetchStubForQido: mock.Stub;
+  function stubFetch() {
+    fetchStubForQido = mock.stub(
       globalThis,
       "fetch",
       mock.returnsNext([
@@ -64,66 +66,58 @@ Deno.test("Dicom Web", async (t) => {
         Promise.resolve(new Response("[]")),
       ]),
     );
+  }
 
+  await t.step("Dicom Web Qido Lookup", async () => {
+    stubFetch();
     let result = await d.lookupStudies({
       var: {
-        tenantAuthz: {
-          patient: testPatient,
-          disableAuthzChecks: false,
-        },
+        authorizer: new Authorizer("sample-tenant", testPatient, false),
+        query: { byPatientId: "123" },
       },
     } as unknown as AppContext);
+    fetchStubForQido.restore();
 
-    fetchStub.restore();
     asserts.assertEquals(result.resourceType, "Bundle");
     asserts.assertEquals(result.entry.length, 1);
-    asserts.assertEquals(fetchStub.calls.length, 2);
+    asserts.assertEquals(fetchStubForQido.calls.length, 2);
 
-    let url: URL = fetchStub.calls[0].args[0] as URL;
+    let url: URL = fetchStubForQido.calls[0].args[0] as URL;
     asserts.assertEquals(url.host, "your.dicom-web.endpoint");
 
     let params = Array.from(new URLSearchParams(url.search).entries());
     asserts.assertEquals(params.length, ["includefield", "PatientID"].length);
 
-    fetchStub = mock.stub(
-      globalThis,
-      "fetch",
-      mock.returnsNext([
-        Promise.resolve(
-          new Response(new TextEncoder().encode(JSON.stringify(qidoMock)), {
-            headers: {
-              "content-type": "application/json",
-            },
-          }),
-        ),
-        Promise.resolve(new Response("[]")),
-      ]),
-    );
-
-    result = await d.lookupStudies({ var: { tenantAuthz: { patient: testPatient } } } as any);
-    fetchStub.restore();
+    stubFetch();
+    result = await d.lookupStudies({
+      var: {
+        authorizer: new Authorizer("sample-tenant", testPatient, false),
+        query: { byPatientId: "123" },
+      },
+    } as any);
+    fetchStubForQido.restore();
 
     asserts.assertEquals(result.resourceType, "Bundle");
     asserts.assertEquals(result.entry.length, 1);
-    asserts.assertEquals(fetchStub.calls.length, 2);
+    asserts.assertEquals(fetchStubForQido.calls.length, 2);
 
-    url = fetchStub.calls[0].args[0] as URL;
+    url = fetchStubForQido.calls[0].args[0] as URL;
     asserts.assertEquals(url.host, "your.dicom-web.endpoint");
 
     params = Array.from(new URLSearchParams(url.search).entries());
     asserts.assertEquals(params.length, 2);
   });
 
-  const goodToken = await dicomweb.signStudyUid("1.2.3", testPatient.id);
+  const goodToken = await dicomweb.signStudyUid("1.2.3", {
+    tenantKey: "sample-tenant",
+    byPatientId: testPatient.id,
+  });
   const badToken = "BAD";
-
+  const authorizer = new Authorizer("sample-tenant", testPatient, false);
   const app = new Hono<HonoEnv>();
   app
     .use("*", async (c, next) => {
-      c.set("tenantAuthz", {
-        patient: testPatient,
-        disableAuthzChecks: false,
-      });
+      c.set("authorizer", authorizer);
       c.set("tenantImageProvider", {
         evaluateDicomWeb: async () => await { headers: {}, body: "OK" },
         lookupStudies: async () => await fhirBundle,
@@ -147,4 +141,13 @@ Deno.test("Dicom Web", async (t) => {
     const response = await app.request(`/wado/${goodToken}/studies/1.2.3`);
     asserts.assertEquals(response.status, 200);
   });
+
+  authorizer.tenantKey = "non-matching";
+  await t.step(
+    "Fails requests when the bindnig token has tenantKey " + authorizer.tenantKey,
+    async () => {
+      const response = await app.request(`/wado/${goodToken}/studies/1.2.3`);
+      asserts.assertEquals(response.status, 403);
+    },
+  );
 });

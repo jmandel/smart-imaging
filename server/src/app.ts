@@ -5,7 +5,7 @@ import { baseUrl } from "./config.ts";
 import { DicomProvider, wadoRouter } from "./dicomweb.ts";
 import { fhirRouter } from "./fhir.ts";
 import { Introspection } from "./introspection.ts";
-import { AuthorizationAssignment, HonoEnv } from "./types.ts";
+import { HonoEnv } from "./types.ts";
 
 // const app = new Application<AppState>();
 const tenantConfig = new Map<string, unknown>();
@@ -31,17 +31,17 @@ tenantApp
     } else {
       throw new HTTPException(403, { message: "Cannot resolve tenant" });
     }
-    c.set("tenantConfig", tenant);
+    const tenantKey = params.dyn ? `dyn/${params.dyn}` : params.tenant!;
+    c.set("tenant", {
+      key: tenantKey,
+      config: tenant,
+      baseUrl:  baseUrl + "/" + tenantKey
+    });
 
-    let tenantAuthz = {} as AuthorizationAssignment;
-    try {
-      tenantAuthz = await Introspection.create(tenant.authorization).assignAuthorization(c);
-      tenantAuthz.ehrBaseUrl = baseUrl + "/" + (params.dyn ? `dyn/${params.dyn}` : params.tenant);
-      c.set("tenantAuthz", tenantAuthz);
-    } catch {}
+    const authorizer =  await Introspection.create(tenant.authorization).makeAuthorizer(c);
+    c.set("authorizer", authorizer)
 
-    c.set(
-      "tenantImageProvider",
+    c.set("tenantImageProvider",
       new DicomProvider(
         tenant.images,
         baseUrl + "/" + (params.dyn ? `/dyn/${params.dyn}` : params.tenant),
