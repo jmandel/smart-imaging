@@ -47,7 +47,7 @@ tenantApp
     c.set("tenantImageProvider",
       DicomProvider.create(
         tenant.images,
-        baseUrl + "/" + (params.dyn ? `/dyn/${params.dyn}` : params.tenant),
+        baseUrl + "/" + (params.dyn ? `dyn/${params.dyn}` : params.tenant),
       ),
     );
     await next();
