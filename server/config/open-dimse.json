@@ -7,6 +7,8 @@
   "images": {
     "type": "dicom-dimse",
     "lookup":  "studies-by-mrn",
-    "endpoint": "dimse://orthanc:4242"
+    "//endpoint": "dimse://imaging-local.argo.run:30042",
+    "endpoint": "dimse://orthanc:4242",
+    "ae": "dimse://STORESCPLOCAL:30104"
   }
 }

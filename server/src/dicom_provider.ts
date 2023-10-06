@@ -34,6 +34,7 @@ export type DicomProviderConfig =
       | "all-studies-on-server"
       | "studies-by-mrn";
     endpoint: string;
+    ae?: string;
     mrn?: string[];
     authentication: {
       type: "http-basic" | "open";

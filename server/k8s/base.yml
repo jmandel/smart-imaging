@@ -96,7 +96,11 @@ data:
         "DeidentifyLogsDicomVersion" : "2021b",
         "CheckRevisions" : false,
         "SynchronousZipStream" : true,
-        "ZipLoaderThreads": 0
+        "ZipLoaderThreads": 0,
+        "DicomModalities" : {
+           "sampleInternal" : [ "STORESCP", "reference", 30104 ],
+           "sampleLocal" : [ "STORESCPLOCAL", "192.168.49.1", 30104 ]
+         }
       }
 ---
 apiVersion: apps/v1
@@ -138,6 +142,8 @@ spec:
         ports:
         - containerPort: 8000
           name: proxy
+        - containerPort: 30104
+          name: dicom-storescu
         args:
         - /bin/bash
         - -c
@@ -174,6 +180,10 @@ spec:
     protocol: TCP
     port: 8000
     targetPort: proxy
+  - name: dicom-storescu
+    protocol: TCP
+    port: 30104
+    targetPort: dicom-storescu
 ---
 apiVersion: apps/v1
 kind: Deployment
