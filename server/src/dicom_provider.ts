@@ -248,14 +248,9 @@ export class DicomProvider {
       patientReference.reference = (ehrBase ? ehrBase + "/" : "") + "Patient/" +
         patient.id;
       query["PatientID"] = mrn;
-    } else if (this.config.lookup === "studies-by-mrn") {
+    } else if (this.config.lookup === "studies-by-mrn" && restrictions.byPatientIdentifier) {
       const identifier = restrictions.byPatientIdentifier;
       patientReference.identifer = identifier;
-      if (!identifier) {
-        throw new HTTPException(403, {
-          message: `Cannot query by identifier without a valid identifier`,
-        });
-      }
       query["PatientID"] = identifier.value;
     }
 

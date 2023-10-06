@@ -25,7 +25,7 @@ export type AppState = {
 export type HonoEnv = { Variables: AppState };
 export type AppContext = Context<HonoEnv>;
 
-export interface AuthorizationAssignment {
+export interface AuthorizationSummary {
   patient?: Patient;
   introspected?: IntrospectionResponse;
   disableAuthzChecks?: boolean;

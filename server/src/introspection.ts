@@ -1,7 +1,7 @@
 import { jose } from "./deps.ts";
 import {
   AppContext,
-  AuthorizationAssignment,
+  AuthorizationSummary,
   IntrospectionResponse,
   Patient,
   QueryRestrictions
@@ -9,17 +9,20 @@ import {
 
 
 export class Authorizer {
-  constructor(public tenantKey: string, public patient?: Patient, public allowQueryiesForAnyPatient: boolean = false) { }
+  constructor(public tenantKey: string, public patient?: Patient, public allowQueriesForAnyPatient: boolean = false) { }
+  ensureProperTenant(tenantKey: string) {
+    if (tenantKey !== this.tenantKey) {
+      throw "Cannot share authorizations across tenants"
+    }
+  };
   // deno-lint-ignore require-await
   async ensureQueryAllowed(
     req: QueryRestrictions,
   ): Promise<boolean> {
-    const { byPatientId, byPatientIdentifier } = req;
-    if (req.tenantKey !== this.tenantKey) {
-      throw "Cannot share authorizations across tenants"
-    }
+    this.ensureProperTenant(req.tenantKey);
 
-    if (this.allowQueryiesForAnyPatient) {
+    const { byPatientId, byPatientIdentifier } = req;
+    if (this.allowQueriesForAnyPatient) {
       return true;
     }
     if (byPatientId && this.patient?.id === byPatientId) {
@@ -42,6 +45,13 @@ export class Authorizer {
     throw "Cannot resolve patient " + patientId + " in this context."
   }
 }
+
+export class AuthorizerRejectingAll extends Authorizer {
+  ensureQueryAllowed(req: QueryRestrictions): Promise<boolean> {
+    throw "Not allowed."
+  }
+}
+
 
 // interface FhirClient {
 //   request(url: string): FhirResponse;
@@ -221,18 +231,11 @@ export class Introspection {
       const { patient, disableAuthzChecks } = await this.assignAuthorization(c);
       return new Authorizer(tenantKey, patient, !!disableAuthzChecks);
     } catch {
-      return {
-        tenantKey,
-        resolvePatient(){throw `Not Authorized`},
-        allowQueryiesForAnyPatient: false,
-        ensureQueryAllowed(_deets) {
-          throw `Not authorized`;
-        },
-      };
+      return new AuthorizerRejectingAll("", undefined, false);
     }
   }
 
-  async assignAuthorization(c: AppContext): Promise<AuthorizationAssignment> {
+  async assignAuthorization(c: AppContext): Promise<AuthorizationSummary> {
     const tokenToIntrospect = c.req.header("authorization")?.split(/bearer /i)?.[1];
     if (!tokenToIntrospect) {
       throw "Cannot authorize without an access token";
@@ -355,7 +358,7 @@ export class IntrospectionMeditech extends Introspection {
 
   async assignAuthorization(
     c: AppContext,
-  ): Promise<AuthorizationAssignment> {
+  ): Promise<AuthorizationSummary> {
     this.insecurePatientId = c.req.query("patient")?.split("/").slice(-1)[0]!;
     if (!this.insecurePatientId) {
       const studyPatientBinding = c.req.url.match(/\/wado\/([^/]+)/)?.[1]!;
@@ -384,7 +387,7 @@ export class IntrospectionMock extends Introspection {
   }
 
   // deno-lint-ignore require-await
-  async assignAuthorization(_c: AppContext): Promise<AuthorizationAssignment> {
+  async assignAuthorization(_c: AppContext): Promise<AuthorizationSummary> {
     return {
       disableAuthzChecks: this.mockConfig.disableAuthzChecks,
       patient: this.mockConfig.patient!,
