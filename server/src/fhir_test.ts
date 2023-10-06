@@ -4,7 +4,7 @@ import * as fhir from "./fhir.ts";
 import { Hono } from "./deps.ts";
 import { fhirBundle, testPatient } from "./fixtures.ts";
 import { HonoEnv } from "./types.ts";
-import { DicomProvider } from "./dicomweb.ts";
+import { DicomProviderWeb } from "./dicom_provider_web.ts";
 import { Authorizer } from "./introspection.ts";
 
 Deno.test("FHIR", async (_t) => {
@@ -34,7 +34,7 @@ Deno.test("FHIR", async (_t) => {
       c.set("tenantImageProvider", {
         lookupStudies: async () => await fhirBundle,
         delayed: () => ({ delayed: false }),
-      } as unknown as DicomProvider);
+      } as unknown as DicomProviderWeb);
       await next();
     })
     .route("/fhir", fhir.fhirRouter);

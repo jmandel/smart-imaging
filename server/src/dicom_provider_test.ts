@@ -1,15 +1,16 @@
 // deno-lint-ignore-file no-explicit-any
 import * as asserts from "https://deno.land/std@0.180.0/testing/asserts.ts";
 import * as mock from "https://deno.land/std@0.180.0/testing/mock.ts";
-import * as dicomweb from "./dicomweb.ts";
+import * as dicomweb from "./dicom_provider.ts";
 
 import { Hono } from "./deps.ts";
 import { fhirBundle, qidoMock, testConfig, testPatient } from "./fixtures.ts";
 import { Authorizer } from "./introspection.ts";
 import { AppContext, HonoEnv } from "./types.ts";
+import { DicomProviderWeb } from "./dicom_provider_web.ts";
 
 Deno.test("Dicom Web", async (t) => {
-  const d = new dicomweb.DicomProvider(testConfig, "https://us.example.org");
+  const d = new DicomProviderWeb(testConfig, "https://us.example.org");
 
   await t.step("format name", () => {
     const result = dicomweb.formatName("Doe^John");
@@ -41,7 +42,7 @@ Deno.test("Dicom Web", async (t) => {
       ]),
     );
 
-    const result = await d.evaluateDicomWeb("1.2.3", {});
+    const result = await d.evaluateWado("1.2.3", {});
     asserts.assertEquals(result.headers["content-type"], "A");
     asserts.assertEquals(result.headers["content-length"], "B");
     asserts.assertExists(result.headers["cache-control"]);
@@ -119,7 +120,7 @@ Deno.test("Dicom Web", async (t) => {
     .use("*", async (c, next) => {
       c.set("authorizer", authorizer);
       c.set("tenantImageProvider", {
-        evaluateDicomWeb: async () => await { headers: {}, body: "OK" },
+        evaluateWado: async () => await { headers: {}, body: "OK" },
         lookupStudies: async () => await fhirBundle,
         delayed: () => ({ delayed: false }),
       } as unknown as dicomweb.DicomProvider);

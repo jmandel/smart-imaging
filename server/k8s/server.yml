@@ -75,3 +75,4 @@ data:
   BASE_URL: https://imaging.argo.run
   LOCAL_STACK_CONFIG: ""
   LAUNCHER_ASSOCIATED_ENDPOINTS: '[{"url": "https://imaging.argo.run/smart-sandbox/fhir", "capabilities": ["smart-imaging-access"]}]'
+  PATH_KEY: online-testing-fake-secret

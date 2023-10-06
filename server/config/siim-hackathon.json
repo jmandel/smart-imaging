@@ -5,7 +5,7 @@
   },
   "images": {
     "type": "dicom-web",
-    "lookup":  "studies-by-identifier",
+    "lookup":  "studies-by-mrn",
     "endpoint": "http://hackathon.siim.org/vna/dicom-web",
     "authentication": {
       "type": "open"

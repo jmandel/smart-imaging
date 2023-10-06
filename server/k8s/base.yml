@@ -47,10 +47,10 @@ data:
         "SslTrustedClientCertificates" : "trustedClientCertificates.pem",
         "DicomTlsEnabled" : false,
         "DicomAlwaysAllowStore" : true,
-        "DicomAlwaysAllowFind" : false,
-        "DicomAlwaysAllowFindWorklist" : false,
-        "DicomAlwaysAllowGet" : false,
-        "DicomAlwaysAllowMove" : false,
+        "DicomAlwaysAllowFind" : true,
+        "DicomAlwaysAllowFindWorklist" : true,
+        "DicomAlwaysAllowGet" : true,
+        "DicomAlwaysAllowMove" : true,
         "DicomCheckModalityHost" : false,
         "DicomModalitiesInDatabase" : false,
         "DicomEchoChecksFind" : false,
@@ -130,6 +130,11 @@ spec:
             configMapKeyRef:
               name: proxy-config
               key: LOCAL_STACK_CONFIG
+        - name: PATH_KEY
+          valueFrom:
+            configMapKeyRef:
+              name: proxy-config
+              key: PATH_KEY
         ports:
         - containerPort: 8000
           name: proxy
@@ -244,6 +249,8 @@ spec:
         ports:
         - containerPort: 8042
           name: orthanc-web
+        - containerPort: 4242
+          name: orthanc-dimse
 ---
 apiVersion: v1
 kind: Service
@@ -251,6 +258,7 @@ metadata:
   name: orthanc
   namespace: smart-imaging-access
 spec:
+  type: NodePort
   selector:
     app: orthanc
   ports:
@@ -258,3 +266,8 @@ spec:
     protocol: TCP
     port: 8042
     targetPort: orthanc-web
+  - name: orthanc-dimse
+    protocol: TCP
+    port: 4242
+    targetPort: orthanc-dimse
+    nodePort: 30042

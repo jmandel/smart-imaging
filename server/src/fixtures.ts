@@ -1,4 +1,4 @@
-import * as dicomweb from "./dicomweb.ts";
+import * as dicomweb from "./dicom_provider.ts";
 import { Patient } from "./types.ts";
 
 export const testConfig: dicomweb.DicomProviderConfig = {

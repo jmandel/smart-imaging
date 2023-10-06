@@ -2,10 +2,13 @@ import { Hono, HTTPException, jose, serveStatic } from "./deps.ts";
 
 import * as path from "https://deno.land/std@0.179.0/path/mod.ts";
 import { baseUrl } from "./config.ts";
-import { DicomProvider, wadoRouter } from "./dicomweb.ts";
+import { DicomProvider, wadoRouter } from "./dicom_provider.ts";
 import { fhirRouter } from "./fhir.ts";
 import { Introspection } from "./introspection.ts";
 import { HonoEnv } from "./types.ts";
+export  { DicomProviderDimse } from "./dicom_provider_dimse.ts";
+export { DicomProviderWeb } from "./dicom_provider_web.ts";
+
 
 // const app = new Application<AppState>();
 const tenantConfig = new Map<string, unknown>();
@@ -42,7 +45,7 @@ tenantApp
     c.set("authorizer", authorizer)
 
     c.set("tenantImageProvider",
-      new DicomProvider(
+      DicomProvider.create(
         tenant.images,
         baseUrl + "/" + (params.dyn ? `/dyn/${params.dyn}` : params.tenant),
       ),
