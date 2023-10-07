@@ -109,7 +109,7 @@ Deno.test("Dicom Web", async (t) => {
     asserts.assertEquals(params.length, 2);
   });
 
-  const goodToken = await dicomweb.signStudyUid("1.2.3", {
+  const goodToken = await dicomweb.createUidBindingToken("1.2.3", {
     tenantKey: "sample-tenant",
     byPatientId: testPatient.id,
   });

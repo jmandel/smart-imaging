@@ -10,22 +10,21 @@ import {
 } from "./types.ts";
 import { pathKey } from "./config.ts";
 
-const signatures: Map<string, string> = new Map();
-export const signStudyUid = async (uid: string, query: QueryRestrictions) => {
+const bindingTokens: Map<string, string> = new Map();
+export const createUidBindingToken = async (uid: string, query: QueryRestrictions) => {
   const key = `${uid}|${JSON.stringify(query)}`;
-  if (signatures.has(key)) {
-    return signatures.get(key);
+  if (bindingTokens.has(key)) {
+    return bindingTokens.get(key);
   }
 
-  const ret = await new jose.SignJWT({ uid, query })
+  const encrypted = await new jose.EncryptJWT({ uid, query })
     .setIssuedAt()
     .setExpirationTime("1 day")
-    .setProtectedHeader({
-      alg: "HS256",
-    })
-    .sign(pathKey);
-  signatures.set(key, ret);
-  return ret;
+    .setProtectedHeader({alg: "dir", enc: "A256GCM"})
+    .encrypt(pathKey);
+
+  bindingTokens.set(key, encrypted);
+  return encrypted;
 };
 
 export type DicomProviderConfig =
@@ -124,7 +123,7 @@ export async function formatResource(
       {
         resourceType: "Endpoint",
         id: "e",
-        address: `${proxyBaseUrl}/wado/${await signStudyUid(uid, query)}`,
+        address: `${proxyBaseUrl}/wado/${await createUidBindingToken(uid, query)}`,
         connectionType: {
           system:
             "http://terminology.hl7.org/CodeSystem/endpoint-connection-type",
@@ -265,7 +264,7 @@ export const wadoRouter = new Hono<HonoEnv>()
 
     let token;
     try {
-      token = await jose.compactVerify(
+      token = await jose.compactDecrypt(
         c.req.param("studyPatientBinding")!,
         pathKey,
       );
@@ -277,7 +276,7 @@ export const wadoRouter = new Hono<HonoEnv>()
 
     const { uid, query }: { uid: string; query: QueryRestrictions } = JSON
       .parse(
-        new TextDecoder().decode(token.payload),
+        new TextDecoder().decode(token.plaintext),
       );
 
     if (uid !== uidParam) {
