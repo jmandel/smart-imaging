@@ -84,8 +84,8 @@ flowchart TB
     RouteQuery --> DICOMQuery[DICOM Web]
 
     FHIRQuery --> CheckFHIRPatientBinding{Check ?patient=}
-    CheckFHIRPatientBinding -->|"<b>authorization.disabled</b><br>false (default)"| EnsurePatientProperty[Ensure ?patient matches<br>resolved patient]
-    CheckFHIRPatientBinding -->|<b>authorization.disabled</b><br>true| SkipPatientBindingCheck[Skip ?patient<br>binding check]
+    CheckFHIRPatientBinding -->|"<b>authorization.disableAuthzChecks</b><br>false (default)"| EnsurePatientProperty[Ensure ?patient matches<br>resolved patient]
+    CheckFHIRPatientBinding -->|<b>authorization.disableAuthzChecks</b><br>true| SkipPatientBindingCheck[Skip ?patient<br>binding check]
     EnsurePatientProperty --> RespondToFHIRQueries{Query<br>Image Source}
     SkipPatientBindingCheck --> RespondToFHIRQueries
     RespondToFHIRQueries -->|"<b>images.lookup</b><br><code>studies-by-mrn>"| PatientBinding[(Search Studies<br>by Patient ID)]
@@ -95,8 +95,8 @@ flowchart TB
     AllStudiesOnServer --> FHIRResponseComplete
 
     DICOMQuery --> CheckDICOMSessionBinding{Check<br><code>/wado/:studyToken</code>}
-    CheckDICOMSessionBinding -->|"<b>authorization.disabled</b><br><code>false</code> (default)"|CheckSessionBindingToken[Ensure session binding token<br>valid and matches<br>resolved patient]
-    CheckDICOMSessionBinding -->|"<b>authorization.disabled</b><br><code>true</code>"| SkipSessionBindingCheck[Skip session binding check]
+    CheckDICOMSessionBinding -->|"<b>authorization.disableAuthzChecks</b><br><code>false</code> (default)"|CheckSessionBindingToken[Ensure session binding token<br>valid and matches<br>resolved patient]
+    CheckDICOMSessionBinding -->|"<b>authorization.disableAuthzChecks</b><br><code>true</code>"| SkipSessionBindingCheck[Skip session binding check]
     CheckSessionBindingToken --> DICOMWebResponseGeneration[(Retrieve<br>DICOM Study)]
     SkipSessionBindingCheck --> DICOMWebResponseGeneration
     DICOMWebResponseGeneration --> DICOMWebResponseComplete(((DICOM Web<br>Response Complete)))
@@ -129,7 +129,7 @@ import {encode} from "https://deno.land/std@0.179.0/encoding/base64url.ts";
 const ex = {
   "authorization": {
     "type": "mock",
-    "disabled": true,
+    "disableAuthzChecks": true,
   },
   "images": {
     "type": "dicom-web",
@@ -145,9 +145,9 @@ const ex = {
 console.log(encode(JSON.stringify(ex)))
 ```
 
-This gives you an `encoded` value of:
+This gives you an `encoded` value.
 
-    eyJhdXRob3JpemF0aW9uIjp7InR5cGUiOiJtb2NrIiwiZGlzYWJsZWQiOnRydWV9LCJpbWFnZXMiOnsidHlwZSI6ImRpY29tLXdlYiIsImxvb2t1cCI6ImFsbC1zdHVkaWVzLW9uLXNlcnZlciIsImVuZHBvaW50IjoiaHR0cHM6Ly9teXNlcnZlci5leGFtcGxlLm9yZy9kaWNvbS13ZWIiLCJhdXRoZW50aWNhdGlvbiI6eyJ0eXBlIjoiaHR0cC1iYXNpYyIsInVzZXJuYW1lIjoiYXJnb25hdXQiLCJwYXNzd29yZCI6ImFyZ29uYXV0In19fQ
+    eyJhdXRob3JpemF0aW9uIjp7InR5cGUiOiJtb2N...
 
 
 ## Technologies under the hood
