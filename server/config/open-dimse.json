@@ -9,6 +9,6 @@
     "lookup":  "studies-by-mrn",
     "//endpoint": "dimse://imaging-local.argo.run:30042",
     "endpoint": "dimse://orthanc:4242",
-    "ae": "dimse://STORESCP:30104"
+    "ae": "ARGO"
   }
 }

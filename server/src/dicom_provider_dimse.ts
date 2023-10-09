@@ -39,16 +39,13 @@ class Study {
     const { hostname: endpointHost, port: endpointPort } = new URL(
       this.config.endpoint.replace("dimse://", "https://"),
     );
-    const { hostname: aeTitle, port: _aePort } = new URL(
-      this.config.ae!.replace("dimse://", "https://"),
-    );
 
     await Deno.mkdirSync(study.downloadDir, { recursive: true });
     new Deno.Command("movescu", {
       args: [
         "-S",
         "-aet",
-        aeTitle,
+        this.config.ae!,
         "-k",
         `0020,000D=${this.studyUid}`,
         endpointHost,

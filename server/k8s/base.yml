@@ -99,7 +99,8 @@ data:
         "ZipLoaderThreads": 0,
         "DicomModalities" : {
            "sampleInternal" : [ "STORESCP", "reference", 30104 ],
-           "sampleLocal" : [ "STORESCPLOCAL", "192.168.49.1", 30104 ]
+           "sampleLocal" : [ "STORESCPLOCAL", "192.168.49.1", 30104 ],
+           "sampleArgo" : [ "ARGO", "dimse-store.argo.run", 30104 ]
          }
       }
 ---
