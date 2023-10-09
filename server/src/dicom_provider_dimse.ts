@@ -89,6 +89,7 @@ class Study {
 
   studyReady() {
     this.allFilesDownloaded = true;
+    console.log("Study ready, emitting", this)
     this.eventEmitter.emit("study-ready", { study: this });
   }
 
@@ -103,6 +104,7 @@ class Study {
         try {
           this.fileWatcher?.close();
         } catch {}
+
         this.eventEmitter.emit("no-readers-remain", { study: this });
       }
     }
@@ -130,13 +132,15 @@ class Study {
     while (!this.allFilesDownloaded) {
       let resolveHandler;
       const result: any = await new Promise((resolve, _reject) => {
-        resolveHandler = resolve;
+        resolveHandler = (result: any) => {
+          this.eventEmitter.off("file-ready", resolveHandler!);
+          this.eventEmitter.off("study-ready", resolveHandler!);
+          resolve(result);
+        };
         this.eventEmitter.once("file-ready", resolveHandler);
         this.eventEmitter.once("study-ready", resolveHandler);
       });
 
-      this.eventEmitter.off("file-ready", resolveHandler!);
-      this.eventEmitter.off("study-ready", resolveHandler!);
       if (result.file) {
         const p = result.file;
         if (!yieldedFiles[p]) {
@@ -145,6 +149,7 @@ class Study {
         }
       }
     }
+    console.log("Final sweep")
 
     yield* newFiles();
   }
@@ -170,7 +175,6 @@ class StudyDownloadManager {
       ],
     }).spawn();
   }
-  // private eventEmitter: EventEmitter = new EventEmitter();
 
   download(studyId: string, config: DicomProviderConfig): Study {
     let study = this.studies.get(studyId);
@@ -201,6 +205,7 @@ class StudyDownloadManager {
 }
 
 const studyDownloadManager = new StudyDownloadManager(dimseDir);
+
 export class DicomProviderDimse extends DicomProvider {
   async evaluateWado(
     wadoPath: string,

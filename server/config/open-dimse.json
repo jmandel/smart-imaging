@@ -7,8 +7,10 @@
   "images": {
     "type": "dicom-dimse",
     "lookup":  "studies-by-mrn",
-    "//endpoint": "dimse://imaging-local.argo.run:30042",
+    "retrieval": "c-move",
     "endpoint": "dimse://orthanc:4242",
-    "ae": "ARGO"
+    "ae": "STORESCP",
+    "//endpoint": "dimse://imaging-local.argo.run:30042",
+    "//ae": "STORESCPLOCAL"
   }
 }
