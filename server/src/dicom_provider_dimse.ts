@@ -31,6 +31,7 @@ class Study {
   async beginMove(resolve: (value: true) => void) {
     try {
       await Deno.stat(path.join(this.downloadDir, ".study-complete"));
+      this.allFilesDownloaded = true;
       resolve(true);
     } catch {}
 
@@ -41,8 +42,9 @@ class Study {
     );
 
     await Deno.mkdirSync(study.downloadDir, { recursive: true });
-    new Deno.Command("movescu", {
+    const moveCommand = new Deno.Command("movescu", {
       args: [
+        "--log-level", "debug",
         "-S",
         "-aet",
         this.config.ae!,
@@ -53,6 +55,15 @@ class Study {
       ],
     }).spawn();
 
+    moveCommand.status.then(async s => {
+      console.log("Move commnd returnd", s)
+      if (s.success) {
+        await Deno.writeTextFile(path.join(this.downloadDir, ".study-complete"), "");
+        console.log("Wrote study complete")
+      } else {
+        console.log("Move comman failed", s)
+      }
+    })
     resolve(true);
     study.fileWatcher = Deno.watchFs(study.downloadDir);
     for await (const fileChanges of study.fileWatcher) {
@@ -115,17 +126,8 @@ class Study {
     };
 
     yield* newFiles();
-    let alreadyComplete = false;
-    try {
-      await Deno.stat(path.join(this.downloadDir, ".study-complete"));
-      alreadyComplete = true;
-    } catch {}
 
-    while (!alreadyComplete) {
-      if (this.allFilesDownloaded) {
-        break;
-      }
-
+    while (!this.allFilesDownloaded) {
       let resolveHandler;
       const result: any = await new Promise((resolve, _reject) => {
         resolveHandler = resolve;
@@ -161,7 +163,7 @@ class StudyDownloadManager {
         "--exec-on-reception",
         "mv #p/#f #p/#f.complete",
         "--exec-on-eostudy",
-        "touch #p/.study-complete",
+        "echo detected eos",
         "--eostudy-timeout",
         "1",
         dimsePort.toString(),
