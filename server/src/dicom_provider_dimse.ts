@@ -1,62 +1,222 @@
 import { jose } from "./deps.ts";
-import { DicomProvider, DicomWebResult } from "./dicom_provider.ts";
+import {
+  DicomProvider,
+  DicomProviderConfig,
+  DicomWebResult,
+} from "./dicom_provider.ts";
 import { QidoResponse } from "./types.ts";
+import { path } from "./deps.ts";
+import { dimseDir, dimsePort } from "./config.ts";
 
-// TODO: Run a persistent listener to avoid port contention
-export class DicomProviderDimse extends DicomProvider {
-  async evaluateWado(
-    path: string,
-    _reqHeaders: Record<string, string>,
-  ): Promise<DicomWebResult> {
+import { EventEmitter } from "node:events";
+
+class Study {
+  public readersCount: number;
+  public eventEmitter: EventEmitter;
+  private allFilesDownloaded = false;
+  public downloadDir: string;
+  private fileWatcher: Deno.FsWatcher | undefined;
+  initialized: Promise<true>;
+
+  constructor(public studyUid: string, public config: DicomProviderConfig) {
+    this.studyUid = studyUid;
+    this.readersCount = 1;
+    this.eventEmitter = new EventEmitter();
+    this.downloadDir = path.join(dimseDir, studyUid);
+    this.initialized = new Promise((resolve, _reject) => {
+      this.beginMove(resolve);
+    });
+  }
+
+  async beginMove(resolve: (value: true) => void) {
+    try {
+      await Deno.stat(path.join(this.downloadDir, ".study-complete"));
+      resolve(true);
+    } catch {}
+
+    // deno-lint-ignore no-this-alias
+    const study = this;
     const { hostname: endpointHost, port: endpointPort } = new URL(
       this.config.endpoint.replace("dimse://", "https://"),
     );
-    const { hostname: aeTitle, port: aePort } = new URL(
+    const { hostname: aeTitle, port: _aePort } = new URL(
       this.config.ae!.replace("dimse://", "https://"),
     );
 
-    const studyUid = path.split("/")[0];
-    const tempDir = await Deno.makeTempDir();
-    const moveCommand = new Deno.Command("movescu", {
-      cwd: tempDir,
+    await Deno.mkdirSync(study.downloadDir, { recursive: true });
+    new Deno.Command("movescu", {
       args: [
         "-S",
-        "--port",
-        aePort,
         "-aet",
         aeTitle,
         "-k",
-        `0020,000D=${studyUid}`,
+        `0020,000D=${this.studyUid}`,
         endpointHost,
         endpointPort,
       ],
     }).spawn();
 
-    const fileWatcher = Deno.watchFs(tempDir);
-    async function* readyFiles() {
-      const emittedFiles: Record<string, true> = {};
-      let lastCreated: string[] = [];
-      for await (const f of fileWatcher) {
-        if (f.kind === "create") {
-          lastCreated.forEach((f) => emittedFiles[f] = true);
-          yield lastCreated;
-          lastCreated = f.paths.map((fn) => fn.split("/").at(-1)!);
+    resolve(true);
+    study.fileWatcher = Deno.watchFs(study.downloadDir);
+    for await (const fileChanges of study.fileWatcher) {
+      if (fileChanges.kind !== "create" && fileChanges.kind !== "modify") {
+        continue;
+      }
+      for (const fp of fileChanges.paths) {
+        if (fp.endsWith(".study-complete")) {
+          study.studyReady();
+        } else if (
+          fileChanges.kind === "modify" && fp.endsWith(".complete")
+        ) {
+          study.fileReady(fp);
         }
       }
-      for await (const f of Deno.readDir(tempDir)) {
-        if (!emittedFiles[f.name]) {
-          yield [f.name];
+    }
+    this.eventEmitter.emit("moving");
+  }
+
+  fileReady(f: string) {
+    this.eventEmitter.emit("file-ready", { study: this, file: f });
+  }
+
+  studyReady() {
+    this.allFilesDownloaded = true;
+    this.eventEmitter.emit("study-ready", { study: this });
+  }
+
+  addReader() {
+    this.readersCount++;
+  }
+
+  removeReader() {
+    if (this.readersCount > 0) {
+      this.readersCount--;
+      if (this.readersCount === 0) {
+        try {
+          this.fileWatcher?.close();
+        } catch {}
+        this.eventEmitter.emit("no-readers-remain", { study: this });
+      }
+    }
+  }
+
+  async *files(): AsyncGenerator<string> {
+    // deno-lint-ignore no-this-alias
+    const study: Study = this;
+    await study.initialized;
+    const yieldedFiles: Record<string, boolean> = {};
+    const newFiles = async function* () {
+      for await (const f of Deno.readDir(study.downloadDir)) {
+        if (f.isFile && f.name.endsWith(".complete")) {
+          const p = path.join(study.downloadDir, f.name);
+          if (!yieldedFiles[p]) {
+            yieldedFiles[p] = true;
+            yield p;
+          }
+        }
+      }
+    };
+
+    yield* newFiles();
+    let alreadyComplete = false;
+    try {
+      await Deno.stat(path.join(this.downloadDir, ".study-complete"));
+      alreadyComplete = true;
+    } catch {}
+
+    while (!alreadyComplete) {
+      if (this.allFilesDownloaded) {
+        break;
+      }
+
+      let resolveHandler;
+      const result: any = await new Promise((resolve, _reject) => {
+        resolveHandler = resolve;
+        this.eventEmitter.once("file-ready", resolveHandler);
+        this.eventEmitter.once("study-ready", resolveHandler);
+      });
+
+      this.eventEmitter.off("file-ready", resolveHandler!);
+      this.eventEmitter.off("study-ready", resolveHandler!);
+      if (result.file) {
+        const p = result.file;
+        if (!yieldedFiles[p]) {
+          yieldedFiles[p] = true;
+          yield p;
         }
       }
     }
 
+    yield* newFiles();
+  }
+}
+
+class StudyDownloadManager {
+  private studies: Map<string, Study> = new Map();
+  private storeScp: Deno.ChildProcess;
+  constructor(dimseDir: string) {
+    Deno.mkdirSync(dimseDir, { recursive: true });
+    this.storeScp = new Deno.Command("storescp", {
+      cwd: dimseDir,
+      args: [
+        "--sort-on-study-uid",
+        "",
+        "--exec-on-reception",
+        "mv #p/#f #p/#f.complete",
+        "--exec-on-eostudy",
+        "touch #p/.study-complete",
+        "--eostudy-timeout",
+        "1",
+        dimsePort.toString(),
+      ],
+    }).spawn();
+  }
+  // private eventEmitter: EventEmitter = new EventEmitter();
+
+  download(studyId: string, config: DicomProviderConfig): Study {
+    let study = this.studies.get(studyId);
+    if (!study) {
+      study = new Study(studyId, config);
+      this.studies.set(studyId, study);
+      study.eventEmitter.on("no-readers-remain", () => {
+        setTimeout(() => {
+          if (study!.readersCount > 0) {
+            return;
+          }
+          console.log("After no activity, cleaning study dir", study?.downloadDir);
+          Deno.removeSync(study!.downloadDir!, { recursive: true });
+          this.studies.delete(studyId);
+        }, 1000 * 3600);
+      });
+    } else {
+      study.addReader();
+    }
+
+    return study;
+  }
+
+  finished(studyId: string) {
+    const study = this.studies.get(studyId);
+    study?.removeReader();
+  }
+}
+
+const studyDownloadManager = new StudyDownloadManager(dimseDir);
+export class DicomProviderDimse extends DicomProvider {
+  async evaluateWado(
+    wadoPath: string,
+    _reqHeaders: Record<string, string>,
+  ): Promise<DicomWebResult> {
+    const studyUid = wadoPath.split("/")[0];
+    const study = studyDownloadManager.download(studyUid, this.config);
+
     async function* multipartStreamGenerator() {
-      const encode = new TextEncoder();
-      const files = readyFiles();
-      const boundary = crypto.randomUUID();
-      let started = false;
-      for await (const flist of files) {
-        for (const f of flist) {
+      try {
+        const encode = new TextEncoder();
+        const files = study.files();
+        const boundary = crypto.randomUUID();
+        let started = false;
+        for await (const f of files) {
           if (started) {
             yield encode.encode("\r\n");
           } else {
@@ -66,13 +226,16 @@ export class DicomProviderDimse extends DicomProvider {
           yield encode.encode(
             `Content-Type: application/dicom\r\nMIME-Version: 1.0\r\n\r\n`,
           );
-          const readable = (await Deno.open(tempDir + "/" + f)).readable;
+          const readable = (await Deno.open(f)).readable;
           for await (const chunk of readable) {
             yield chunk;
           }
         }
+        yield encode.encode(`\r\n--${boundary}--\r\n`);
+        studyDownloadManager.finished(studyUid);
+      } catch (e) {
+        console.log("Err generating chunk", e);
       }
-      yield encode.encode(`\r\n--${boundary}--\r\n`);
     }
 
     const chunkGenerator = multipartStreamGenerator();
@@ -92,19 +255,10 @@ export class DicomProviderDimse extends DicomProvider {
       },
     }, { highWaterMark: 20 });
 
-    async function cleanup() {
-      try {
-        moveCommand.kill();
-      } catch {}
-      try {
-        fileWatcher.close();
-      } catch {}
-      try {
-        await Deno.remove(tempDir, { recursive: true });
-      } catch {}
+    function cleanup() {
+      studyDownloadManager.finished(studyUid);
     }
 
-    moveCommand.status.finally(cleanup);
     return {
       headers: {
         "content-type": 'multipart/related; type="application/dicom"',
