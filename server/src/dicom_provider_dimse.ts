@@ -59,7 +59,8 @@ class Study {
       console.log("Move commnd returnd", s)
       if (s.success) {
         await Deno.writeTextFile(path.join(this.downloadDir, ".study-complete"), "");
-        console.log("Wrote study complete")
+        this.allFilesDownloaded = true;
+        console.log("Wrote study complete", this.studyUid)
       } else {
         console.log("Move comman failed", s)
       }
