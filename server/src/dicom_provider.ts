@@ -185,15 +185,15 @@ export class DicomProvider {
   }
 
   // deno-lint-ignore no-unused-vars
-  async evaluateQido(query: Record<string, string>): Promise<QidoResponse> {
+  async evaluateQido(query: Record<string, string>): Promise<StudyEnriched[]> {
     throw await "abstract";
   }
   async lookupStudies(c: AppContext): Promise<FhirResponse> {
     const { restrictions, query, patientReference } = await this.prepareQuery(
       c,
     );
-    const matchingStudies = await this.evaluateQido(query);
-    const studies = await this.enrichStudies(matchingStudies);
+
+    const studies = await this.evaluateQido(query);
 
     return {
       resourceType: "Bundle",

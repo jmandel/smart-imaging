@@ -1,28 +1,31 @@
-import { jose } from "./deps.ts";
+import { move } from "https://deno.land/std@0.180.0/fs/move.ts";
+import { dimseDir, dimsePort } from "./config.ts";
+import { path } from "./deps.ts";
 import {
   DicomProvider,
   DicomProviderConfig,
   DicomWebResult,
+  StudyEnriched,
 } from "./dicom_provider.ts";
-import { QidoResponse } from "./types.ts";
-import { path } from "./deps.ts";
-import { dimseDir, dimsePort } from "./config.ts";
+import { QidoResponse, TAGS} from "./types.ts";
 
 import { EventEmitter } from "node:events";
 
 class Study {
-  public readersCount: number;
+  public readersCount = 0;
   public eventEmitter: EventEmitter;
   private allFilesDownloaded = false;
   public downloadDir: string;
+  public lastRequestTime: number = new Date().getTime();
   private fileWatcher: Deno.FsWatcher | undefined;
   initialized: Promise<true>;
+  moveCommand: Deno.ChildProcess|undefined;
 
   constructor(public studyUid: string, public config: DicomProviderConfig) {
     this.studyUid = studyUid;
-    this.readersCount = 1;
     this.eventEmitter = new EventEmitter();
     this.downloadDir = path.join(dimseDir, studyUid);
+    this.addReader();
     this.initialized = new Promise((resolve, _reject) => {
       this.beginMove(resolve);
     });
@@ -54,15 +57,16 @@ class Study {
         endpointPort,
       ],
     }).spawn();
+    this.moveCommand = moveCommand;
 
     moveCommand.status.then(async s => {
-      console.log("Move commnd returnd", s)
       if (s.success) {
         await Deno.writeTextFile(path.join(this.downloadDir, ".study-complete"), "");
         this.allFilesDownloaded = true;
         console.log("Wrote study complete", this.studyUid)
       } else {
-        console.log("Move comman failed", s)
+        console.log("Move command failed", s)
+        this.eventEmitter.emit("move-failed", {error: s, "description": "Move command failed"});
       }
     })
     resolve(true);
@@ -96,6 +100,7 @@ class Study {
 
   addReader() {
     this.readersCount++;
+    this.lastRequestTime = new Date().getTime();
   }
 
   removeReader() {
@@ -141,11 +146,19 @@ class Study {
         resolveHandler = (result: any) => {
           this.eventEmitter.off("file-ready", resolveHandler!);
           this.eventEmitter.off("study-ready", resolveHandler!);
+          this.eventEmitter.off("move-failed", resolveHandler!);
           resolve(result);
         };
         this.eventEmitter.once("file-ready", resolveHandler);
         this.eventEmitter.once("study-ready", resolveHandler);
+        this.eventEmitter.once("move-failed", resolveHandler);
       });
+
+      console.log("Result", result)
+      if (result.error) {
+        console.log("Throw", result.error)
+        throw result.error
+      }
 
       if (result.file) {
         const p = result.file;
@@ -182,14 +195,20 @@ class StudyDownloadManager {
     }).spawn();
   }
 
-  download(studyId: string, config: DicomProviderConfig): Study {
+  request(studyId: string, config: DicomProviderConfig): Study {
     let study = this.studies.get(studyId);
     if (!study) {
       study = new Study(studyId, config);
       this.studies.set(studyId, study);
+      const quietTime = study.lastRequestTime;
+      study.eventEmitter.on("move-failed", () => {
+        this.studies.delete(studyId);
+      })
+ 
       study.eventEmitter.on("no-readers-remain", () => {
+        try {study?.moveCommand?.kill()} catch {}
         setTimeout(() => {
-          if (study!.readersCount > 0) {
+          if (study!.lastRequestTime > quietTime) {
             return;
           }
           console.log("After no activity, cleaning study dir", study?.downloadDir);
@@ -218,10 +237,9 @@ export class DicomProviderDimse extends DicomProvider {
     _reqHeaders: Record<string, string>,
   ): Promise<DicomWebResult> {
     const studyUid = wadoPath.split("/")[0];
-    const study = studyDownloadManager.download(studyUid, this.config);
+    const study = studyDownloadManager.request(studyUid, this.config);
 
     async function* multipartStreamGenerator() {
-      try {
         const encode = new TextEncoder();
         const files = study.files();
         const boundary = crypto.randomUUID();
@@ -243,9 +261,6 @@ export class DicomProviderDimse extends DicomProvider {
         }
         yield encode.encode(`\r\n--${boundary}--\r\n`);
         studyDownloadManager.finished(studyUid);
-      } catch (e) {
-        console.log("Err generating chunk", e);
-      }
     }
 
     const chunkGenerator = multipartStreamGenerator();
@@ -277,14 +292,14 @@ export class DicomProviderDimse extends DicomProvider {
     };
   }
 
-  async evaluateQido(query: Record<string, string>): Promise<QidoResponse> {
+  async evaluateQido(query: Record<string, string>): Promise<StudyEnriched[]> {
     const tempDir = await Deno.makeTempDir();
     // reformat to take advantage of parsing, whicn doesn't understnd "dimse"
     const url = new URL(this.config.endpoint.replace("dimse://", "https://"));
     const findResult = await new Deno.Command("findscu", {
       cwd: tempDir,
       args: [
-        ..."-aet NAME -S -k QueryRetrieveLevel=STUDY -k StudyInstanceUID -k PatientName -k PatientID -k StudyDate -k StudyTime -k ModalitiesInStudy -k StudyDescription --extract"
+        ...`-aet NAME -S -k QueryRetrieveLevel=SERIES -k SeriesInstanceUID -k Modality -k 0008,0061 -k StudyInstanceUID -k PatientName -k PatientID -k StudyDate -k StudyTime -k ModalitiesInStudy -k StudyDescription --extract`
           .split(/\s+/),
         ...Object.entries(query).flatMap(([k, v]) => [`-k`, `${k}=${v}`]),
         url.hostname,
@@ -296,17 +311,17 @@ export class DicomProviderDimse extends DicomProvider {
       throw "Could not run find";
     }
 
-    const studies = [];
-    for await (const studyFile of Deno.readDir(tempDir)) {
-      if (studyFile.isFile) {
+    const series = [];
+    for await (const seriesFile of Deno.readDir(tempDir)) {
+      if (seriesFile.isFile) {
         const json = await new Deno.Command("dcm2json", {
           cwd: tempDir,
-          args: [studyFile.name],
+          args: [seriesFile.name],
         }).output();
         if (!json.success) {
           continue;
         }
-        studies.push(
+        series.push(
           JSON.parse(
             new TextDecoder().decode(json.stdout),
           ) as QidoResponse[number],
@@ -314,9 +329,22 @@ export class DicomProviderDimse extends DicomProvider {
       }
     }
 
+    const studies: Record<string, StudyEnriched> = {}
+    for (const s of series) {
+      const studyUid = s[TAGS.STUDY_UID].Value[0];
+      if (!studies[studyUid]) {
+        studies[studyUid] = {studyQido: s, series: []}
+      }
+      studies[studyUid].series!.push({seriesQido: s})
+    }
+    for (const s of Object.values(studies)) {
+      s.studyQido[TAGS.SERIES_UID].Value = s.series!.flatMap(se => se.seriesQido[TAGS.SERIES_UID].Value);
+      s.studyQido[TAGS.MODALITIES_IN_STUDY].Value = [...new Set(s.series!.flatMap(se => se.seriesQido[TAGS.MODALITY].Value))];
+    }
+
     // not awaiting; can happen in background
     Deno.remove(tempDir, { recursive: true });
-    return studies;
+    return Object.values(studies)
   }
 }
 

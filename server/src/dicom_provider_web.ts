@@ -31,7 +31,7 @@ export class DicomProviderWeb extends DicomProvider {
     });
     return { headers, body: proxied.body! };
   }
-  async evaluateQido(query: Record<string,string>): Promise<QidoResponse> {
+  async evaluateQido(query: Record<string,string>): Promise<StudyEnriched[]> {
     query["includefield"] = "StudyDescription"
     const qido = new URL(
       `${this.config.endpoint}/studies?${new URLSearchParams(query).toString()}`
@@ -42,7 +42,7 @@ export class DicomProviderWeb extends DicomProvider {
         ...this.authHeader(),
       },
     }).then((q) => q.json());
-    return matchingStudies;
+    return this.enrichStudies(matchingStudies);
   }
 
   async enrichStudies(
