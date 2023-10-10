@@ -129,6 +129,11 @@ class Study {
 
     yield* newFiles();
 
+    if (this.allFilesDownloaded) {
+      console.log("All fils alredy dl'd, skipping")
+    } else {
+      console.log("Still waiting on files here", study)
+    }
     while (!this.allFilesDownloaded) {
       let resolveHandler;
       const result: any = await new Promise((resolve, _reject) => {
