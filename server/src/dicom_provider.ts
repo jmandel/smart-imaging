@@ -150,7 +150,7 @@ export async function formatResource(
         },
       })),
     })),
-    endpoint: { reference: "#e" },
+    endpoint: [{ reference: "#e" }],
     identifier: [{ system: "urn:dicom:uid", value: `urn:oid:${uid}` }],
     modality: q[TAGS.MODALITIES_IN_STUDY].Value.map((code: string) => ({
       system: `http://dicom.nema.org/resources/ontology/DCM`,

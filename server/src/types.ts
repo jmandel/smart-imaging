@@ -127,7 +127,7 @@ export interface FhirResponse {
       id: string;
       modality: Coding[];
       status: "available";
-      endpoint: { reference: string };
+      endpoint: { reference: string }[];
       series?: {
         uid: string;
         number?: number;

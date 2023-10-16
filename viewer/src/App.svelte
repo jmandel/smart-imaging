@@ -82,7 +82,7 @@
       .filter((r) => r.resourceType === "ImagingStudy")
       .map((r) => ({
         uid: r.identifier[0].value.slice(8),
-        address: resolveReference(r.endpoint.reference, r, endpoints).address,
+        address: resolveReference(r.endpoint[0].reference, r, endpoints).address,
         modality: r.modality[0].code,
         description: r.description || r.modality[0].code
       }));
