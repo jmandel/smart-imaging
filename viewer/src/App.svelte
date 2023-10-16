@@ -72,10 +72,13 @@
 
     const imageClient = await client.forCapability("smart-imaging-access");
     const images = await imageClient.patient.request(`ImagingStudy?_include=ImagingStudy:endpoint`) as fhirclient.FHIR.Bundle;
-    const endpoints = images?.entry.filter(r => r.resource.resourceType === "Endpoint").map(r => r.resource);
+
+    const endpoints = images?.entry?.filter(r => r.resource.resourceType === "Endpoint");
     const resolveReference = (ref, resource, endpoints) => ref.startsWith("#") ?
-            resource.contained.filter(r => r.id === ref.slice(1))?.[0] :
-            endpoints.filter(e => e.id === ref.split('/')?.[0])?.[0];
+            resource.contained.filter(r => r.id === ref.slice(1))?.at(0) :
+            endpoints.filter(e => e?.fullUrl === ref)?.at(0)?.resource ??
+            endpoints.filter(e => e?.resource?.id === ref.split('/')?.at(1))?.at(0)?.resource ;
+
 
     imagingStudies = images.entry
       .map((e) => e.resource)
