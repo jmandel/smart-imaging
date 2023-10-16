@@ -221,7 +221,6 @@ export class Introspection {
     const introspected = await this.introspect(tokenToIntrospect, accessToken);
     console.log("Introspected", introspected);
     const patient = await this.resolvePatient(introspected, accessToken);
-    console.log("P", patient);
     return { patient, introspected };
   }
 
