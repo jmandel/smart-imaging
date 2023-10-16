@@ -1,4 +1,4 @@
-import { Hono, HTTPException, jose, serveStatic } from "./deps.ts";
+import { Hono, HTTPException, jose, serveStatic, logger } from "./deps.ts";
 
 import * as path from "https://deno.land/std@0.179.0/path/mod.ts";
 import { baseUrl } from "./config.ts";
@@ -52,13 +52,21 @@ tenantApp
     );
     await next();
   })
+  .use('*', async (ctx, next) => {
+    console.log("Tenant", ctx.var.tenant?.key)
+    console.log("Params", ctx.req.query())
+    await next();
+  })
   .route("/wado", wadoRouter)
   .route("/fhir", fhirRouter);
 
 const ROOT_DIR = "public";
 const ROOT_DIR_PATH = "/app/*";
 
-export const app = new Hono();
+
+
+export const app = new Hono<HonoEnv>();
+app.use('*', logger())
 app
   .get(
     ROOT_DIR_PATH,

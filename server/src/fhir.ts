@@ -1,7 +1,7 @@
 // import { Router } from "./deps.ts";
 
 import { Hono, HTTPException } from "./deps.ts";
-import { AppState, HonoEnv, Identifier, QueryRestrictions } from "./types.ts";
+import { HonoEnv, Identifier, QueryRestrictions } from "./types.ts";
 
 export const fhirRouter = new Hono<HonoEnv>();
 fhirRouter.use("/:fhir{[A-Z][^/]*/*}", async (c, next) => {
@@ -42,6 +42,10 @@ fhirRouter.use("/:fhir{[A-Z][^/]*/*}", async (c, next) => {
   c.set("query", queryRestrictions);
   await next();
 });
+fhirRouter.use('*', async (ctx, next) => {
+    console.log("Query Restriction", ctx.var.query)
+    await next();
+  })
 
 // deno-lint-ignore require-await
 fhirRouter.get("/", async (c) =>
