@@ -55,7 +55,7 @@ jobs:
     - name: Wait for sample data then run playwright
       working-directory: ./integration
       run: |
-      while true; do
+        while true; do
           # Capture the full response in a variable
           response=$(curl -s https://argonaut:argonaut@imaging.argo.run/orthanc/tools/find -d '{"Level":"Study","Query":{"PatientName":"Kshlerin*"}}')
   
