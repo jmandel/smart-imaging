@@ -122,7 +122,7 @@ spec:
     spec:
       containers:
       - name: proxy
-        image: argonautcontainerregistry.azurecr.io/imaging-proxy:latest
+        image: ghcr.io/jmandel/smart-imaging-proxy:latest
         imagePullPolicy: IfNotPresent
         env:
         - name: BASE_URL
@@ -151,7 +151,7 @@ spec:
         - >
           deno run $LOCAL_STACK_CONFIG --allow-all src/index.ts;
       - name: sample-loader
-        image: argonautcontainerregistry.azurecr.io/imaging-proxy:latest
+        image: ghcr.io/jmandel/smart-imaging-proxy:latest
         imagePullPolicy: IfNotPresent
         env:
         - name: BASE_URL
@@ -204,7 +204,7 @@ spec:
     spec:
       containers:
       - name: launcher
-        image: argonautcontainerregistry.azurecr.io/smartonfhir/smart-launcher-2:latest
+        image: ghcr.io/jmandel/smart-launcher-2:latest
         imagePullPolicy: IfNotPresent
         env:
         - name: ASSOCIATED_ENDPOINTS
