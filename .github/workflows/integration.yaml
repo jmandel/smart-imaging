@@ -55,27 +55,17 @@ jobs:
     - name: Wait for sample data then run playwright
       working-directory: ./integration
       run: |
-        while true; do
-          # Capture the full response in a variable
-          response=$(curl -s https://argonaut:argonaut@imaging.argo.run/orthanc/tools/find -d '{"Level":"Study","Query":{"PatientName":"Kshlerin*"}}')
-  
-          # Get the character count of the response
-          char_count=$(echo -n "$response" | wc -c)
-  
-          echo "Response from Orthanc server:"
-          echo "$response"
-          echo "Character count: $char_count"
-  
-          if [ "$char_count" -ge "20" ]; then
-            echo "Condition met. Exiting loop."
-            break
-          fi
-  
+        while [[ "$(curl -s -k https://argonaut:argonaut@imaging-local.argo.run/orthanc/tools/find -d '{\"Level\":\"Study\",\"Query\":{\"PatientName\":\"Kshlerin*\"}}' | wc -c)" -lt "20" ]]; do
           curl -k -vvv https://argonaut:argonaut@imaging-local.argo.run/orthanc/studies || true
+          curl -s -k https://argonaut:argonaut@imaging-local.argo.run/orthanc/tools/find -d '{\"Level\":\"Study\",\"Query\":{\"PatientName\":\"Kshlerin*\"}}'
+          # kubectl -n smart-imaging-access get pods
+          # kubectl -n smart-imaging-access describe pods
+          # kubectl -n smart-imaging-access logs  deployments/orthanc | tail -n 10 || true
+          # kubectl -n smart-imaging-access logs  deployments/reference | tail -n 10 || true
+          # kubectl -n smart-imaging-access logs  deployments/reference -c sample-loader | tail -n 10  || true
           echo "waiting for orthanc server"
           sleep 10
         done
-        echo "Script completed."
         npx playwright test
 
 
