@@ -124,6 +124,10 @@ spec:
       - name: proxy
         image: ghcr.io/jmandel/smart-imaging-proxy:latest
         imagePullPolicy: IfNotPresent
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "75m"
         env:
         - name: BASE_URL
           valueFrom:
@@ -153,6 +157,10 @@ spec:
       - name: sample-loader
         image: ghcr.io/jmandel/smart-imaging-proxy:latest
         imagePullPolicy: IfNotPresent
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "125m"
         env:
         - name: BASE_URL
           value: "http://orthanc"
@@ -166,7 +174,7 @@ spec:
         - >
           cd examples;
           deno run --allow-all load-examples.ts --wait-for-dicom-server;
-          sleep infinity; 
+          sleep infinity;
 ---
 apiVersion: v1
 kind: Service
@@ -206,6 +214,10 @@ spec:
       - name: launcher
         image: ghcr.io/jmandel/smart-launcher-v2:latest
         imagePullPolicy: IfNotPresent
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "75m"
         env:
         - name: ASSOCIATED_ENDPOINTS
           valueFrom:
@@ -253,6 +265,10 @@ spec:
       containers:
       - name: orthanc
         image: jodogne/orthanc-plugins:1.11.0
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "125m"
         volumeMounts:
         - name: orthanc-config-volume
           subPath: config.json
