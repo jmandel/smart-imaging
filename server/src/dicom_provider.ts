@@ -296,14 +296,14 @@ export const wadoRouter = new Hono<HonoEnv>()
   })
   .get(
     "/:studyPatientBinding/studies/:wadoSuffix{.*}",
-    async (c: AppContext) => {
+    async (c) => {
       const { delayed, secondsRemaining } = c.var.tenantImageProvider.delayed(
         "retrieve",
       );
       if (delayed) {
         c.res.headers.set("Retry-After", secondsRemaining!.toString());
         c.status(503);
-        return;
+        return c.body(null);
       }
 
       const { headers, body } = await c.var.tenantImageProvider

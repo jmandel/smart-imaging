@@ -1,7 +1,7 @@
 {
   "authorization": {
-    "type": "smart-on-fhir-independent",
-    "fhirBaseUrl": "http://launcher/v/r4/sim/WzQsIiIsIiIsIiIsMCwwLDAsIiIsIiIsImltYWdpbmctY2xpZW50IiwiIiwiIiwiIiwie1xuICAgIFwia2V5c1wiOiBbXG4gICAgICAgIHtcbiAgICAgICAgICAgIFwia3R5XCI6IFwiRUNcIixcbiAgICAgICAgICAgIFwiY3J2XCI6IFwiUC0zODRcIixcbiAgICAgICAgICAgIFwieFwiOiBcImJiVVlGSVZtQVJiY2JLVDRTeFZwNEVDX25WV1hFQmRUUVp0YkVjc2pQblpuckIxQUFIRTF3ZTNwZnFNVm94VUpcIixcbiAgICAgICAgICAgIFwieVwiOiBcIjVNdjZSSDRqclhPNWpTRElMWWhhRk96S0RmMG8tVDBEdzRJS1k5ZmRLekp2bHZTSS1HdGU3WXNqTDM2QzZLYTVcIixcbiAgICAgICAgICAgIFwia2V5X29wc1wiOiBbXG4gICAgICAgICAgICAgICAgXCJ2ZXJpZnlcIlxuICAgICAgICAgICAgXSxcbiAgICAgICAgICAgIFwiZXh0XCI6IHRydWUsXG4gICAgICAgICAgICBcImtpZFwiOiBcIjJjMWU5YTIxNzQxMGVkZDgyM2UyODg2ZmQ3M2FhYzQzXCIsXG4gICAgICAgICAgICBcImFsZ1wiOiBcIkVTMzg0XCJcbiAgICAgICAgfV19IiwyLDFd/fhir",
+    "type": "smart-on-fhir",
+    "fhirBaseUrl": "https://launch.smarthealthit.org/v/r4/sim/WzMsIiIsIiIsIkFVVE8iLDAsMCwwLCIiLCIiLCIiLCIiLCIiLCIiLCIiLDAsMSwiIl0/fhir",
     "scope": "system/Patient.read",
     "client": {
       "client_id": "imaging-client",

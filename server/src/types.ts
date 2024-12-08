@@ -17,6 +17,8 @@ export type AppState = {
     config: any;
     baseUrl: string;
   };
+  // deno-lint-ignore no-explicit-any
+  session: any;
   authorizer: Authorizer;
   query: QueryRestrictions;
   // tenantAuthz: AuthorizationAssignment;
@@ -141,4 +143,40 @@ export interface FhirResponse {
       }[];
     };
   }[];
+}
+
+export interface IntrospectionConfigBase {
+  fhirBaseUrl: string;
+  scope: string;
+  client: {
+    client_id: string;
+    jwk: { alg: "ES384" | "RS384"; kid: string };
+    jwkPrivate: unknown;
+  };
+}
+
+export type IntrospectionConfigMock = IntrospectionConfigBase & {
+  type: "mock";
+  patient?: Patient;
+  disableAuthzChecks?: boolean;
+};
+
+export type IntrospectionConfigMeditech = IntrospectionConfigBase & {
+  type: "smart-on-fhir-with-meditech-bugfixes";
+  client: { client_secret: string };
+};
+
+
+export type IntrospectionConfig =
+  & IntrospectionConfigBase
+  & (
+    | { type: "smart-on-fhir" }
+    | { type: "smart-on-fhir-independent" }
+    | { type: "smart-on-fhir-with-epic-bugfixes" }
+    | IntrospectionConfigMeditech
+    | IntrospectionConfigMock
+  );
+
+export function isIndependentSmartTenant(tenant: AppState['tenant']) {
+  return tenant.config.authorization.type === "smart-on-fhir-independent";
 }

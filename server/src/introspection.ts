@@ -2,6 +2,9 @@ import { jose } from "./deps.ts";
 import {
   AppContext,
   AuthorizationSummary,
+  IntrospectionConfig,
+  IntrospectionConfigMeditech,
+  IntrospectionConfigMock,
   IntrospectionResponse,
   Patient,
   QueryRestrictions
@@ -47,7 +50,7 @@ export class Authorizer {
 }
 
 export class AuthorizerRejectingAll extends Authorizer {
-  ensureQueryAllowed(req: QueryRestrictions): Promise<boolean> {
+  ensureQueryAllowed(_req: QueryRestrictions): Promise<boolean> {
     throw "Not allowed."
   }
 }
@@ -63,36 +66,6 @@ export class AuthorizerRejectingAll extends Authorizer {
 //     return await "always-ok";
 //   }
 // }
-
-interface IntrospectionConfigBase {
-  fhirBaseUrl: string;
-  scope: string;
-  client: {
-    client_id: string;
-    jwk: { alg: "ES384" | "RS384"; kid: string };
-    jwkPrivate: unknown;
-  };
-}
-
-type IntrospectionConfigMock = IntrospectionConfigBase & {
-  type: "mock";
-  patient?: Patient;
-  disableAuthzChecks?: boolean;
-};
-
-type IntrospectionConfigMeditech = IntrospectionConfigBase & {
-  type: "smart-on-fhir-with-meditech-bugfixes";
-  client: { client_secret: string };
-};
-
-type IntrospectionConfig =
-  & IntrospectionConfigBase
-  & (
-    | { type: "smart-on-fhir" }
-    | { type: "smart-on-fhir-with-epic-bugfixes" }
-    | IntrospectionConfigMeditech
-    | IntrospectionConfigMock
-  );
 
 interface SmartConfiguration {
   token_endpoint: string;

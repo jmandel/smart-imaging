@@ -1,0 +1,16 @@
+{
+  "authorization": {
+    "type": "mock",
+    "patient": {"resourceType": "Patient", "id": "123", "identifier": [{"value": "293ee354-f8ad-4345-b10c-759fdfdcc082"}]},
+    "disableAuthzChecks": true
+  },
+  "images": {
+    "type": "dicom-dimse",
+    "lookup":  "studies-by-mrn",
+    "retrieval": "c-move",
+    "endpoint": "dimse://orthanc:4242",
+    "ae": "STORESCP",
+    "//endpoint": "dimse://imaging-local.argo.run:30042",
+    "//ae": "STORESCPLOCAL"
+  }
+}

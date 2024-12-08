@@ -1,0 +1,14 @@
+{
+  "authorization": {
+    "type": "mock",
+    "disableAuthzChecks": true
+  },
+  "images": {
+    "type": "dicom-web",
+    "lookup":  "studies-by-mrn",
+    "endpoint": "http://hackathon.siim.org/vna/dicom-web",
+    "authentication": {
+      "type": "open"
+    }
+  }
+}

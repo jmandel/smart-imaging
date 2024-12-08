@@ -1,0 +1,16 @@
+{
+  "authorization": {
+    "type": "mock",
+    "disableAuthzChecks": true
+  },
+  "images": {
+    "type": "dicom-web",
+    "lookup":  "all-studies-on-server",
+    "endpoint": "http://orthanc:8042/dicom-web",
+    "authentication": {
+      "type": "http-basic",
+      "username": "argonaut",
+      "password": "argonaut"
+    }
+  }
+}

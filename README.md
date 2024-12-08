@@ -210,7 +210,7 @@ eval $(minikube -p minikube docker-env)
 
 git clone https://github.com/smart-on-fhir/smart-launcher-v2
 cd smart-launcher-v2
-docker build -t argonautcontainerregistry.azurecr.io/smartonfhir/smart-launcher-2 .
+docker build -t ghcr.io/jmandel/smart-launcher-v2:latest .
 cd ..
 
 git clone https://github.com/jmandel/smart-imaging-api
