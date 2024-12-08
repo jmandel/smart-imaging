@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>SMART Auth Test</title>
+    <script type="module">
+        import { SmartLaunch } from './smart.js';
+
+        if (window.location.search.includes('code=') || window.location.search.includes('error=')) {
+            SmartLaunch.handleCallback();
+        }
+
+        // Initialize EHR client
+        const ehrClient = new SmartLaunch({
+            clientId: 'my_client_id',  // Replace with actual client ID
+            fhirBaseUrl: 'https://launcher.imaging-local.argo.run/v/r4/sim/WzMsIiIsIiIsIkFVVE8iLDAsMCwwLCIiLCIiLCIiLCIiLCIiLCIiLCIiLDAsMSwiIl0/fhir',  // Replace with actual EHR endpoint
+            scope: 'launch/patient patient/*.read openid fhirUser'
+        });
+
+        // Initialize Imaging client
+        const imagingClient = new SmartLaunch({
+            clientId: 'my_client_id',  // Replace with actual client ID
+            fhirBaseUrl: 'http://localhost:8000/smart-sandbox-independent/fhir',
+            scope: 'launch/patient patient/ImagingStudy.read'
+        });
+
+        let ehrTokenResponse = null;
+
+        window.startFlow = async () => {
+            const statusEl = document.getElementById('status');
+            const errorEl = document.getElementById('error');
+            const startButton = document.getElementById('startButton');
+            
+            statusEl.textContent = 'Starting EHR authorization...';
+            errorEl.textContent = '';
+            startButton.disabled = true;
+
+            try {
+                // Step 1: EHR Authorization
+                ehrTokenResponse = await ehrClient.authorize();
+                document.getElementById('ehrTokens').textContent = 
+                    JSON.stringify(ehrTokenResponse, null, 2);
+                
+                statusEl.textContent = 'EHR authorization complete. Starting Imaging authorization...';
+
+                // Step 2: Imaging Authorization with login_hint and prompt=none
+                const imagingResponse = await imagingClient.authorize({
+                    login_hint: ehrTokenResponse.id_token,
+                    prompt: 'none'
+                });
+                document.getElementById('imagingTokens').textContent = 
+                    JSON.stringify(imagingResponse, null, 2);
+                
+                statusEl.textContent = 'Flow complete!';
+            } catch (err) {
+                errorEl.textContent = `Error: ${err.message}`;
+                statusEl.textContent = 'Error occurred';
+            } finally {
+                startButton.disabled = false;
+            }
+        };
+
+        // Handle authorization callback
+    </script>
+    <style>
+        body { 
+            font-family: system-ui, -apple-system, sans-serif;
+            max-width: 800px;
+            margin: 2rem auto;
+            padding: 0 1rem;
+        }
+        .container {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        button {
+            padding: 0.5rem 1rem;
+            background: #0066cc;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            width: fit-content;
+        }
+        button:disabled {
+            background: #ccc;
+        }
+        pre {
+            background: #f5f5f5;
+            padding: 1rem;
+            border-radius: 4px;
+            overflow: auto;
+            max-height: 300px;
+        }
+        .error {
+            color: #cc0000;
+        }
+        .token-display {
+            margin-top: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>SMART Auth Test</h1>
+        
+        <div>
+            <p><strong>Status:</strong> <span id="status">Not started</span></p>
+            <p class="error" id="error"></p>
+            <button id="startButton" onclick="startFlow()">Start Authorization Flow</button>
+        </div>
+
+        <div class="token-display">
+            <h2>EHR Token Response</h2>
+            <pre id="ehrTokens">No response yet</pre>
+        </div>
+
+        <div class="token-display">
+            <h2>Imaging Token Response</h2>
+            <pre id="imagingTokens">No response yet</pre>
+        </div>
+    </div>
+</body>
+</html>
