@@ -49,7 +49,7 @@ interface TokenData {
 
 // In-memory stores
 const authorizationRequests = new Map<string, AuthorizationRequest>();
-const tokens = new Map<string, TokenData>();
+export const tokens = new Map<string, TokenData>();
 const sessions = new Map<string, { ehrFlow?: EHRFlow }>();
 
 // Helper to generate random bytes as base64url

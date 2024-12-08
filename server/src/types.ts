@@ -167,6 +167,10 @@ export type IntrospectionConfigMeditech = IntrospectionConfigBase & {
 };
 
 
+export type IntrospectionConfigIndependent = IntrospectionConfigBase & {
+  type: "smart-on-fhir-independent";
+};
+
 export type IntrospectionConfig =
   & IntrospectionConfigBase
   & (

@@ -3,12 +3,14 @@ import {
   AppContext,
   AuthorizationSummary,
   IntrospectionConfig,
+  IntrospectionConfigIndependent,
   IntrospectionConfigMeditech,
   IntrospectionConfigMock,
   IntrospectionResponse,
   Patient,
   QueryRestrictions
 } from "./types.ts";
+import { tokens } from "./oauth.ts";
 
 
 export class Authorizer {
@@ -31,6 +33,8 @@ export class Authorizer {
     if (byPatientId && this.patient?.id === byPatientId) {
       return true;
     }
+
+      console.log("check by identifier", byPatientIdentifier, this.patient?.identifier)
     if (
       //TODO decide whether to restrict access by Identifier.system
       byPatientIdentifier && this.patient?.identifier?.some((i) => i.value === byPatientIdentifier.value)
@@ -74,6 +78,7 @@ interface SmartConfiguration {
   jwks_uri?: string;
 }
 
+
 export class Introspection {
   public cache: { smartConfiguration?: SmartConfiguration } = {};
   static create(config: IntrospectionConfig): Introspection {
@@ -83,6 +88,8 @@ export class Introspection {
       return new IntrospectionMeditech(config);
     } else if (config.type === "mock") {
       return new IntrospectionMock(config);
+    } else if (config.type === "smart-on-fhir-independent") {
+      return new IntrospectionIndependent(config);
     } else {
       return new Introspection(config);
     }
@@ -370,5 +377,47 @@ export class IntrospectionMock extends Introspection {
       },
       ehrBaseUrl: this.mockConfig.fhirBaseUrl,
     };
+  }
+}
+
+export class IntrospectionIndependent extends Introspection {
+  constructor(public config: IntrospectionConfigIndependent) {
+    super(config);
+  }
+
+  // deno-lint-ignore require-await
+  async getAuthorizationContext(tokenToIntrospect: string) {
+    // Look up token in the tokens store
+    const tokenData = tokens.get(tokenToIntrospect);
+    if (!tokenData) {
+      throw new Error("Token not found");
+    }
+
+    // Check if token is expired (1 hour/3600 seconds from creation)
+    const tokenAge = Date.now() - tokenData.created_at.getTime();
+    const isActive = tokenAge < tokenData.tokenResponse.expires_in * 1000;
+
+    const introspected = {
+      active: isActive,
+      scope: tokenData.authRequest.scope,
+      patient: tokenData.authRequest.ehrTokenResponse?.patient,
+    };
+
+    // Use the FHIR user data stored during authorization
+    const patient = tokenData.authRequest.fhirUser;
+
+    return { patient, introspected };
+  }
+
+  allowsImaging(introspected: IntrospectionResponse): boolean {
+    const scopes = introspected.scope.split(/\s+/);
+    return [
+      "patient/*.*",
+      "patient/*.read",
+      "patient/*.rs",
+      "patient/ImagingStudy.read",
+      "patient/ImagingStudy.*",
+      "patient/ImagingStudy.rs",
+    ].some((s) => scopes.includes(s));
   }
 }
