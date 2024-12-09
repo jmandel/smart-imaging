@@ -264,7 +264,7 @@ export const oauthRouter = new Hono<HonoEnv>()
         response_type: "code",
         client_id: tenantConfig.authorization.client.client_id,
         redirect_uri: `${c.var.tenant.baseUrl}/oauth/ehr-callback`,
-        scope: "openid fhirUser launch/patient patient/*.read",
+        scope: "openid fhirUser launch/patient patient/*.* user/*.*",
         state: ehrState,
         nonce,
         aud: ehrBaseUrl,
@@ -366,6 +366,8 @@ export const oauthRouter = new Hono<HonoEnv>()
             
             if (userResponse.ok) {
               authRequest.ehrFhirUser = await userResponse.json();
+              authRequest.userUrl = fhirUserUrl;
+              authRequest.ehrFihrUserRaw = decodedPayload
             }
           }
 
@@ -389,6 +391,7 @@ export const oauthRouter = new Hono<HonoEnv>()
       }
 
       // Show authorization screen with both user and patient data
+      console.log("renderAuthorizationScreen", authRequest);
       return new Response(renderAuthorizationScreen(authRequest), {
         headers: { "Content-Type": "text/html" }
       });

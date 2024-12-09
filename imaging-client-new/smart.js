@@ -20,8 +20,9 @@ class EventEmitter {
 }
 
 class MultiSmartLaunch {
-  constructor(servers) {
+  constructor(servers, capabilities = []) {
     this.servers = servers;
+    this.capabilities = capabilities;
     this.currentServerIndex = 0;
     this.tokens = {};
     this.state = this.generateState();
@@ -33,8 +34,8 @@ class MultiSmartLaunch {
     window.addEventListener("message", this.handleMessage);
   }
 
-  static initialize(servers) {
-    return new MultiSmartLaunch(servers);
+  static initialize(servers, capabilities) {
+    return new MultiSmartLaunch(servers, capabilities);
   }
 
   authorize() {
@@ -181,6 +182,9 @@ class MultiSmartLaunch {
     });
 
     // If useHint is true and we have a previous server's id_token, use it as login_hint
+    console.log("server.useLoginHint", server.useLoginHint);
+    console.log("this.currentServerIndex", this.currentServerIndex);
+    console.log("this.tokens", this.tokens);
     if (server.useLoginHint === "previous_id_token" && this.currentServerIndex > 0) {
       const previousIdToken = Object.values(this.tokens).map(t => t.id_token).find(Boolean);
       params.append("login_hint", previousIdToken);
@@ -241,7 +245,33 @@ class MultiSmartLaunch {
       throw new Error(`Failed to fetch SMART configuration: ${response.statusText}`);
     }
 
-    return await response.json();
+    const config = await response.json();
+
+    // Check for associated endpoints with the specified capabilities
+    console.log("got config, lookign for", this.capabilities);
+    if (this.capabilities.length > 0) {
+      const associatedEndpoints = config.associated_endpoints || [];
+      associatedEndpoints.forEach(endpoint => {
+        console.log("endpoint", endpoint);
+        if (this.capabilities.some(cap => endpoint.capabilities.includes(cap))) {
+          // Check if the endpoint is already in the list of servers
+          console.log("endpoint is of interest");
+          const isAlreadyConnected = this.servers.some(s => s.fhirBaseUrl === endpoint.url);
+          console.log("isAlreadyConnected", isAlreadyConnected);
+          if (!isAlreadyConnected) {
+            this.servers.push({
+              clientId: server.clientId, // Use the same clientId
+              fhirBaseUrl: endpoint.url,
+              scope: server.scope, // Use the same scope
+              useLoginHint: endpoint.capabilities.some(cap => cap.includes("independent")) ? "previous_id_token" : false
+            });
+          }
+        }
+      });
+    }
+    console.log("servers", this.servers);
+
+    return config;
   }
 }
 

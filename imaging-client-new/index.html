@@ -9,14 +9,8 @@
         const defaultConfig = [
             {
                 clientId: 'ehr_client_id',
-                fhirBaseUrl: "https://launcher.imaging-local.argo.run/v/r4/sim/WzMsIiIsIiIsIkFVVE8iLDAsMCwwLCIiLCIiLCIiLCIiLCIiLCIiLCIiLDAsMSwiIl0/fhir",
+                fhirBaseUrl: "https://launcher.imaging.argo.run/v/r4/sim/WzMsIjg3YTMzOWQwLThjYWUtNDE4ZS04OWM3LTg2NTFlNmFhYjNjNiIsIiIsIkFVVE8iLDAsMCwwLCIiLCIiLCIiLCIiLCIiLCIiLCIiLDAsMSwiIl0/fhir",
                 scope: 'launch/patient patient/*.read openid fhirUser'
-            },
-            {
-                clientId: 'ehr_client_id',
-                fhirBaseUrl: 'http://localhost:8000/smart-sandbox-independent/fhir',
-                scope: 'launch/patient patient/ImagingStudy.read',
-                useLoginHint: "previous_id_token"
             }
         ];
 
@@ -35,7 +29,7 @@
                 statusEl.textContent = 'Starting authorization flow...';
                 const configText = document.getElementById('configInput').value;
                 const servers = JSON.parse(configText);
-                const client = MultiSmartLaunch.initialize(servers);
+                const client = MultiSmartLaunch.initialize(servers, ["smart-imaging-access-testing-independent"]);
                 const tokens = await client.authorize();
                 
                 // Display tokens

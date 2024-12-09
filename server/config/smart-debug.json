@@ -1,7 +1,7 @@
 {
   "authorization": {
     "type": "smart-on-fhir-independent",
-    "fhirBaseUrl": "https://launcher.imaging.argo.run/v/r4/sim/WzMsIiIsIiIsIkFVVE8iLDAsMCwwLCIiLCIiLCIiLCIiLCIiLCIiLCIiLDAsMSwiIl0/fhir",
+    "fhirBaseUrl": "http://localhost:8445/v/r4/sim/WzIsIiIsIiIsIkFVVE8iLDAsMCwwLCIiLCIiLCIiLCIiLCIiLCIiLCIiLDAsMSwiIl0/fhir",
     "scope": "system/Patient.read",
     "client": {
       "client_id": "imaging-client",
