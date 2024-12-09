@@ -181,10 +181,9 @@ class MultiSmartLaunch {
     });
 
     // If useHint is true and we have a previous server's id_token, use it as login_hint
-    if (server.useHint && this.currentServerIndex > 0) {
-      const previousServerUrl = this.servers[0].fhirBaseUrl;
-      const previousTokens = this.tokens[previousServerUrl];
-      params.append("login_hint", previousTokens.id_token);
+    if (server.useLoginHint === "previous_id_token" && this.currentServerIndex > 0) {
+      const previousIdToken = Object.values(this.tokens).map(t => t.id_token).find(Boolean);
+      params.append("login_hint", previousIdToken);
     }
 
     if (server.additionalParams) {
