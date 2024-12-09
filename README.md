@@ -215,7 +215,7 @@ cd ..
 
 git clone https://github.com/jmandel/smart-imaging-api
 cd smart-imaging-api/server
-docker build -t argonautcontainerregistry.azurecr.io/imaging-proxy .
+docker build -t ghcr.io/jmandel/smart-imaging-proxy:latest .
 
 kubectl apply -f k8s/base.yml -f k8s/minikube.yml
 ```

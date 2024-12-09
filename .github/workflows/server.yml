@@ -28,10 +28,11 @@ jobs:
     - name: Build and rollout to CI
       working-directory: ./server
       run: |
-        docker build . \
-          -t ${{ secrets.CONTAINER_REGISTRY }}/imaging-proxy:$GITHUB_SHA \
-          -t ${{ secrets.CONTAINER_REGISTRY }}/imaging-proxy:latest
-        docker run --rm --entrypoint deno  argonautcontainerregistry.azurecr.io/imaging-proxy test --allow-all
-        docker push ${{ secrets.CONTAINER_REGISTRY }}/imaging-proxy
-        kubectl -n smart-imaging-access patch deployment reference --type JSON --patch '[{"op": "replace", "path": "/spec/template/spec/containers/0/imagePullPolicy", "value": "Always"}]'
-        kubectl -n smart-imaging-access rollout restart deployment/reference
+        echo "TODO"
+        # docker build . \
+        #   -t ${{ secrets.CONTAINER_REGISTRY }}/imaging-proxy:$GITHUB_SHA \
+        #   -t ${{ secrets.CONTAINER_REGISTRY }}/imaging-proxy:latest
+        # docker run --rm --entrypoint deno  argonautcontainerregistry.azurecr.io/imaging-proxy test --allow-all
+        # docker push ${{ secrets.CONTAINER_REGISTRY }}/imaging-proxy
+        # kubectl -n smart-imaging-access patch deployment reference --type JSON --patch '[{"op": "replace", "path": "/spec/template/spec/containers/0/imagePullPolicy", "value": "Always"}]'
+        # kubectl -n smart-imaging-access rollout restart deployment/reference

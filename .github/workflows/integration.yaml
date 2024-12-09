@@ -30,13 +30,12 @@ jobs:
         export SHELL=/bin/bash
         eval $(minikube -p minikube docker-env)
         docker pull ghcr.io/jmandel/smart-launcher-v2:latest
-        docker tag ghcr.io/jmandel/smart-launcher-v2:latest argonautcontainerregistry.azurecr.io/smartonfhir/smart-launcher-2:latest
         cd viewer
         npm ci
         npm run build --  --base=/app
         mv dist ../server/public
         cd ../server
-        docker build -t argonautcontainerregistry.azurecr.io/imaging-proxy:latest .
+        docker build -t  ghcr.io/jmandel/smart-imaging-proxy:latest .
         echo -n "verifying images:"
         docker images
     - name: Launch Minikube Stack
