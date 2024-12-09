@@ -400,11 +400,13 @@ export class IntrospectionIndependent extends Introspection {
     const introspected = {
       active: isActive,
       scope: tokenData.authRequest.scope,
-      patient: tokenData.authRequest.ehrTokenResponse?.patient,
+      patient: tokenData.tokenResponse.patient
     };
 
-    // Use the FHIR user data stored during authorization
-    const patient = tokenData.authRequest.fhirUser;
+    const patient = {
+      ...tokenData.authRequest.ehrPatient,
+      id: introspected.patient
+    };
 
     return { patient, introspected };
   }

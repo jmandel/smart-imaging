@@ -32,7 +32,8 @@ interface AuthorizationRequest {
   approved: boolean;
   ehrTokenResponse: EHRTokenResponse | null;
   clientRegistration: Record<string, unknown>;
-  fhirUser?: any;
+  ehrFhirUser?: any;
+  ehrPatient?: any;
 }
 
 interface TokenData {
@@ -76,7 +77,15 @@ async function generatePkce() {
 }
 
 // Add this helper function for the authorization screen HTML
-function renderAuthorizationScreen(authRequest: AuthorizationRequest, fhirUser: any) {
+function renderAuthorizationScreen(authRequest: AuthorizationRequest) {
+  const userName = authRequest.ehrFhirUser?.name?.[0]?.text || 
+                  `${authRequest.ehrFhirUser?.name?.[0]?.given?.[0] || ''} ${authRequest.ehrFhirUser?.name?.[0]?.family || ''}`.trim() || 
+                  'Unknown';
+  
+  const patientName = authRequest.ehrPatient?.name?.[0]?.text ||
+                     `${authRequest.ehrPatient?.name?.[0]?.given?.[0] || ''} ${authRequest.ehrPatient?.name?.[0]?.family || ''}`.trim() ||
+                     'Unknown';
+
   return `
     <!DOCTYPE html>
     <html>
@@ -131,10 +140,8 @@ function renderAuthorizationScreen(authRequest: AuthorizationRequest, fhirUser: 
             
             <div class="info">
                 <p>The application <strong>${authRequest.client_id}</strong> is requesting access to imaging studies.</p>
-                <p>User: ${fhirUser?.name?.[0]?.text || 
-                          `${fhirUser?.name?.[0]?.given?.[0] || ''} ${fhirUser?.name?.[0]?.family || ''}`.trim() || 
-                          'Unknown'}</p>
-                <p>Patient: ${authRequest.ehrTokenResponse?.patient || 'Unknown'}</p>
+                <p>User: ${userName}</p>
+                <p>Patient: ${patientName}</p>
             </div>
 
             <form class="actions" action="./imaging-decision" method="POST">
@@ -338,16 +345,18 @@ export const oauthRouter = new Hono<HonoEnv>()
       // Update auth request with EHR token response
       authRequest.ehrTokenResponse = ehrTokenResponse;
 
+      // Fetch both user and patient information
       if (ehrTokenResponse.id_token) {
         const [_header, payload, _signature] = ehrTokenResponse.id_token.split('.');
         const decodedPayload = JSON.parse(atob(payload));
         
-        if (decodedPayload.fhirUser) {
-          const fhirUserUrl = decodedPayload.fhirUser.startsWith('http') 
-            ? decodedPayload.fhirUser
-            : `${ehrBaseUrl}/${decodedPayload.fhirUser.startsWith('/') ? decodedPayload.fhirUser.slice(1) : decodedPayload.fhirUser}`;
+        try {
+          // Fetch FHIR user info
+          if (decodedPayload.fhirUser) {
+            const fhirUserUrl = decodedPayload.fhirUser.startsWith('http') 
+              ? decodedPayload.fhirUser
+              : `${ehrBaseUrl}/${decodedPayload.fhirUser.startsWith('/') ? decodedPayload.fhirUser.slice(1) : decodedPayload.fhirUser}`;
 
-          try {
             const userResponse = await fetch(fhirUserUrl, {
               headers: {
                 'Authorization': `Bearer ${ehrTokenResponse.access_token}`,
@@ -356,22 +365,31 @@ export const oauthRouter = new Hono<HonoEnv>()
             });
             
             if (userResponse.ok) {
-              const fhirUser = await userResponse.json();
-              // Store the FHIR user in the auth request
-              authRequest.fhirUser = fhirUser;
-              // Show authorization screen with FHIR user data
-              return new Response(renderAuthorizationScreen(authRequest, fhirUser), {
-                headers: { "Content-Type": "text/html" }
-              });
+              authRequest.ehrFhirUser = await userResponse.json();
             }
-          } catch (userError) {
-            console.error("Failed to fetch user info:", userError);
           }
+
+          // Fetch patient info if we have a patient context
+          if (ehrTokenResponse.patient) {
+            const patientUrl = `${ehrBaseUrl}/Patient/${ehrTokenResponse.patient}`;
+            const patientResponse = await fetch(patientUrl, {
+              headers: {
+                'Authorization': `Bearer ${ehrTokenResponse.access_token}`,
+                'Accept': 'application/fhir+json'
+              }
+            });
+
+            if (patientResponse.ok) {
+              authRequest.ehrPatient = await patientResponse.json();
+            }
+          }
+        } catch (error) {
+          console.error("Failed to fetch user or patient info:", error);
         }
       }
 
-      // Fallback if we couldn't get user info
-      return new Response(renderAuthorizationScreen(authRequest, null), {
+      // Show authorization screen with both user and patient data
+      return new Response(renderAuthorizationScreen(authRequest), {
         headers: { "Content-Type": "text/html" }
       });
 
@@ -463,7 +481,9 @@ export const oauthRouter = new Hono<HonoEnv>()
       token_type: "Bearer",
       expires_in: 3600,
       scope: authRequest.scope,
-      patient: authRequest.ehrTokenResponse.patient // Pass through patient context but not id_token
+      patient: authRequest.ehrTokenResponse.patient
+      // deterministically generate a patient id from the EHR's patient id
+      // patient: await crypto.subtle.digest("SHA-256", new TextEncoder().encode(authRequest.ehrTokenResponse.patient)).then(r => btoa(String.fromCharCode(...new Uint8Array(r)))).then(r => r.replace(/=+$/, ""))
     };
 
     // Store token with full context
