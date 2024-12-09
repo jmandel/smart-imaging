@@ -263,7 +263,7 @@ class MultiSmartLaunch {
               clientId: server.clientId, // Use the same clientId
               fhirBaseUrl: endpoint.url,
               scope: server.scope, // Use the same scope
-              useLoginHint: endpoint.capabilities.some(cap => cap.includes("independent")) ? "previous_id_token" : false
+              useLoginHint: endpoint.capabilities.some(cap => cap.includes("dual-launch")) ? "previous_id_token" : false
             });
           }
         }
