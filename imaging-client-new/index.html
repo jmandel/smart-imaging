@@ -29,7 +29,7 @@
                 statusEl.textContent = 'Starting authorization flow...';
                 const configText = document.getElementById('configInput').value;
                 const servers = JSON.parse(configText);
-                const client = MultiSmartLaunch.initialize(servers, ["smart-imaging-access-testing-independent"]);
+                const client = MultiSmartLaunch.initialize(servers, ["smart-imaging-access-dual-launch"]);
                 const tokens = await client.authorize();
                 
                 // Display tokens

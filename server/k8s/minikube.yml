@@ -58,5 +58,5 @@ metadata:
 data:
   BASE_URL: https://imaging-local.argo.run
   LOCAL_STACK_CONFIG: --unsafely-ignore-certificate-errors
-  LAUNCHER_ASSOCIATED_ENDPOINTS: '[{"url": "https://imaging-local.argo.run/smart-sandbox-local/fhir", "capabilities": ["smart-imaging-access"]},{"url": "https://imaging-local.argo.run/smart-sandbox-local-independent/fhir", "capabilities": ["smart-imaging-access-testing-independent"]}]'
+  LAUNCHER_ASSOCIATED_ENDPOINTS: '[{"url": "https://imaging-local.argo.run/smart-sandbox-local/fhir", "capabilities": ["smart-imaging-access"]},{"url": "https://imaging-local.argo.run/smart-sandbox-local-independent/fhir", "capabilities": ["smart-imaging-access-dual-launch"]}]'
   PATH_KEY: local-testing-fake-secret
