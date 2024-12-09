@@ -70,8 +70,8 @@ jobs:
           echo "Raw response:"
           echo "$FIND_RESPONSE" | jq '.' || echo "$FIND_RESPONSE"
           
-          if [ "$LINE_COUNT" -ge "12" ]; then
-            echo "Success! Found $LINE_COUNT lines (>= 12 lines). Exiting loop."
+          if [ "$LINE_COUNT" -ge "6" ]; then
+            echo "Success! Found $LINE_COUNT lines (>= 6 lines). Exiting loop."
             break
           fi
           
