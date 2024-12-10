@@ -4,8 +4,9 @@ import * as path from "https://deno.land/std@0.179.0/path/mod.ts";
 import { baseUrl } from "./config.ts";
 import { DicomProvider, wadoRouter } from "./dicom_provider.ts";
 import { fhirRouter } from "./fhir.ts";
+import { oauthRouter } from "./oauth.ts";
 import { Introspection } from "./introspection.ts";
-import { HonoEnv } from "./types.ts";
+import { AppContext, HonoEnv } from "./types.ts";
 export  { DicomProviderDimse } from "./dicom_provider_dimse.ts";
 export { DicomProviderWeb } from "./dicom_provider_web.ts";
 
@@ -41,7 +42,7 @@ tenantApp
       baseUrl:  baseUrl + "/" + tenantKey
     });
 
-    const authorizer =  await Introspection.create(tenant.authorization).makeAuthorizer(c);
+    const authorizer =  await Introspection.create(tenant.authorization).makeAuthorizer(c as unknown as AppContext);
     c.set("authorizer", authorizer)
 
     c.set("tenantImageProvider",
@@ -58,7 +59,9 @@ tenantApp
     await next();
   })
   .route("/wado", wadoRouter)
-  .route("/fhir", fhirRouter);
+  .route("/fhir", fhirRouter)
+  .route("/oauth", oauthRouter); // Add OAuth routes
+
 
 const ROOT_DIR = "public";
 const ROOT_DIR_PATH = "/app/*";

@@ -1,0 +1,37 @@
+{
+  "authorization": {
+    "type": "smart-on-fhir",
+    "fhirBaseUrl": "http://launcher/v/r4/sim/WzQsIiIsIiIsIiIsMCwwLDAsIiIsIiIsImltYWdpbmctY2xpZW50IiwiIiwiIiwiIiwie1xuICAgIFwia2V5c1wiOiBbXG4gICAgICAgIHtcbiAgICAgICAgICAgIFwia3R5XCI6IFwiRUNcIixcbiAgICAgICAgICAgIFwiY3J2XCI6IFwiUC0zODRcIixcbiAgICAgICAgICAgIFwieFwiOiBcImJiVVlGSVZtQVJiY2JLVDRTeFZwNEVDX25WV1hFQmRUUVp0YkVjc2pQblpuckIxQUFIRTF3ZTNwZnFNVm94VUpcIixcbiAgICAgICAgICAgIFwieVwiOiBcIjVNdjZSSDRqclhPNWpTRElMWWhhRk96S0RmMG8tVDBEdzRJS1k5ZmRLekp2bHZTSS1HdGU3WXNqTDM2QzZLYTVcIixcbiAgICAgICAgICAgIFwia2V5X29wc1wiOiBbXG4gICAgICAgICAgICAgICAgXCJ2ZXJpZnlcIlxuICAgICAgICAgICAgXSxcbiAgICAgICAgICAgIFwiZXh0XCI6IHRydWUsXG4gICAgICAgICAgICBcImtpZFwiOiBcIjJjMWU5YTIxNzQxMGVkZDgyM2UyODg2ZmQ3M2FhYzQzXCIsXG4gICAgICAgICAgICBcImFsZ1wiOiBcIkVTMzg0XCJcbiAgICAgICAgfV19IiwyLDFd/fhir",
+    "scope": "system/Patient.read",
+    "client": {
+      "client_id": "imaging-client",
+      "jwk": {
+        "kty": "EC",
+        "crv": "P-384",
+        "x": "bbUYFIVmARbcbKT4SxVp4EC_nVWXEBdTQZtbEcsjPnZnrB1AAHE1we3pfqMVoxUJ",
+        "y": "5Mv6RH4jrXO5jSDILYhaFOzKDf0o-T0Dw4IKY9fdKzJvlvSI-Gte7YsjL36C6Ka5",
+        "kid": "2c1e9a217410edd823e2886fd73aac43",
+        "alg": "ES384"
+      },
+      "jwkPrivate": {
+        "kty": "EC",
+        "crv": "P-384",
+        "d": "0PycFXdRavo2skKh0bWl--px1MnAEdoF2LeQJOonQ1dM-5EgRFva1KiDtw5aoDFc",
+        "x": "bbUYFIVmARbcbKT4SxVp4EC_nVWXEBdTQZtbEcsjPnZnrB1AAHE1we3pfqMVoxUJ",
+        "y": "5Mv6RH4jrXO5jSDILYhaFOzKDf0o-T0Dw4IKY9fdKzJvlvSI-Gte7YsjL36C6Ka5",
+        "kid": "2c1e9a217410edd823e2886fd73aac43",
+        "alg": "ES384"
+      }
+    }
+  },
+  "images": {
+    "type": "dicom-web",
+    "lookup":  "studies-by-mrn",
+    "endpoint": "http://orthanc:8042/dicom-web",
+    "authentication": {
+      "type": "http-basic",
+      "username": "argonaut",
+      "password": "argonaut"
+    }
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "authorization": {
+    "type": "smart-on-fhir",
+    "fhirBaseUrl": "https://launch.smarthealthit.org/v/r4/sim/WzMsIiIsIiIsIkFVVE8iLDAsMCwwLCIiLCIiLCIiLCIiLCIiLCIiLCIiLDAsMSwiIl0/fhir",
+    "scope": "system/Patient.read",
+    "client": {
+      "client_id": "imaging-client",
+      "jwk": {
+        "kty": "EC",
+        "crv": "P-384",
+        "x": "bbUYFIVmARbcbKT4SxVp4EC_nVWXEBdTQZtbEcsjPnZnrB1AAHE1we3pfqMVoxUJ",
+        "y": "5Mv6RH4jrXO5jSDILYhaFOzKDf0o-T0Dw4IKY9fdKzJvlvSI-Gte7YsjL36C6Ka5",
+        "kid": "2c1e9a217410edd823e2886fd73aac43",
+        "alg": "ES384"
+      },
+      "jwkPrivate": {
+        "kty": "EC",
+        "crv": "P-384",
+        "d": "0PycFXdRavo2skKh0bWl--px1MnAEdoF2LeQJOonQ1dM-5EgRFva1KiDtw5aoDFc",
+        "x": "bbUYFIVmARbcbKT4SxVp4EC_nVWXEBdTQZtbEcsjPnZnrB1AAHE1we3pfqMVoxUJ",
+        "y": "5Mv6RH4jrXO5jSDILYhaFOzKDf0o-T0Dw4IKY9fdKzJvlvSI-Gte7YsjL36C6Ka5",
+        "kid": "2c1e9a217410edd823e2886fd73aac43",
+        "alg": "ES384"
+      }
+    }
+  },
+  "images": {
+    "type": "dicom-web",
+    "lookup":  "studies-by-mrn",
+    "endpoint": "http://orthanc:8042/dicom-web",
+    "authentication": {
+      "type": "http-basic",
+      "username": "argonaut",
+      "password": "argonaut"
+    }
+  }
+}

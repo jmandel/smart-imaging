@@ -2,10 +2,15 @@ import { jose } from "./deps.ts";
 import {
   AppContext,
   AuthorizationSummary,
+  IntrospectionConfig,
+  IntrospectionConfigIndependent,
+  IntrospectionConfigMeditech,
+  IntrospectionConfigMock,
   IntrospectionResponse,
   Patient,
   QueryRestrictions
 } from "./types.ts";
+import { tokens } from "./oauth.ts";
 
 
 export class Authorizer {
@@ -28,6 +33,8 @@ export class Authorizer {
     if (byPatientId && this.patient?.id === byPatientId) {
       return true;
     }
+
+      console.log("check by identifier", byPatientIdentifier, this.patient?.identifier)
     if (
       //TODO decide whether to restrict access by Identifier.system
       byPatientIdentifier && this.patient?.identifier?.some((i) => i.value === byPatientIdentifier.value)
@@ -47,7 +54,7 @@ export class Authorizer {
 }
 
 export class AuthorizerRejectingAll extends Authorizer {
-  ensureQueryAllowed(req: QueryRestrictions): Promise<boolean> {
+  ensureQueryAllowed(_req: QueryRestrictions): Promise<boolean> {
     throw "Not allowed."
   }
 }
@@ -64,42 +71,13 @@ export class AuthorizerRejectingAll extends Authorizer {
 //   }
 // }
 
-interface IntrospectionConfigBase {
-  fhirBaseUrl: string;
-  scope: string;
-  client: {
-    client_id: string;
-    jwk: { alg: "ES384" | "RS384"; kid: string };
-    jwkPrivate: unknown;
-  };
-}
-
-type IntrospectionConfigMock = IntrospectionConfigBase & {
-  type: "mock";
-  patient?: Patient;
-  disableAuthzChecks?: boolean;
-};
-
-type IntrospectionConfigMeditech = IntrospectionConfigBase & {
-  type: "smart-on-fhir-with-meditech-bugfixes";
-  client: { client_secret: string };
-};
-
-type IntrospectionConfig =
-  & IntrospectionConfigBase
-  & (
-    | { type: "smart-on-fhir" }
-    | { type: "smart-on-fhir-with-epic-bugfixes" }
-    | IntrospectionConfigMeditech
-    | IntrospectionConfigMock
-  );
-
 interface SmartConfiguration {
   token_endpoint: string;
   introspection_endpoint: string;
   issuer?: string;
   jwks_uri?: string;
 }
+
 
 export class Introspection {
   public cache: { smartConfiguration?: SmartConfiguration } = {};
@@ -110,6 +88,8 @@ export class Introspection {
       return new IntrospectionMeditech(config);
     } else if (config.type === "mock") {
       return new IntrospectionMock(config);
+    } else if (config.type === "smart-on-fhir-independent") {
+      return new IntrospectionIndependent(config);
     } else {
       return new Introspection(config);
     }
@@ -397,5 +377,49 @@ export class IntrospectionMock extends Introspection {
       },
       ehrBaseUrl: this.mockConfig.fhirBaseUrl,
     };
+  }
+}
+
+export class IntrospectionIndependent extends Introspection {
+  constructor(public config: IntrospectionConfigIndependent) {
+    super(config);
+  }
+
+  // deno-lint-ignore require-await
+  async getAuthorizationContext(tokenToIntrospect: string) {
+    // Look up token in the tokens store
+    const tokenData = tokens.get(tokenToIntrospect);
+    if (!tokenData) {
+      throw new Error("Token not found");
+    }
+
+    // Check if token is expired (1 hour/3600 seconds from creation)
+    const tokenAge = Date.now() - tokenData.created_at.getTime();
+    const isActive = tokenAge < tokenData.tokenResponse.expires_in * 1000;
+
+    const introspected = {
+      active: isActive,
+      scope: tokenData.authRequest.scope,
+      patient: tokenData.tokenResponse.patient
+    };
+
+    const patient = {
+      ...tokenData.authRequest.ehrPatient,
+      id: introspected.patient
+    };
+
+    return { patient, introspected };
+  }
+
+  allowsImaging(introspected: IntrospectionResponse): boolean {
+    const scopes = introspected.scope.split(/\s+/);
+    return [
+      "patient/*.*",
+      "patient/*.read",
+      "patient/*.rs",
+      "patient/ImagingStudy.read",
+      "patient/ImagingStudy.*",
+      "patient/ImagingStudy.rs",
+    ].some((s) => scopes.includes(s));
   }
 }

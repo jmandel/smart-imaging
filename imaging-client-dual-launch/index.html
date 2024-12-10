@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Multi-SMART Auth Test</title>
+    <script src="https://unpkg.com/cornerstone-core/dist/cornerstone.min.js"></script>
+    <script src="https://unpkg.com/dicom-parser/dist/dicomParser.min.js"></script>
+    <script src="https://unpkg.com/cornerstone-wado-image-loader@4.13.2/dist/cornerstoneWADOImageLoader.bundle.min.js"></script>
+    <script type="module">
+        import { parseMultipart, displayDicomImage, loadDicomStudy, initializeViewer } from './dicom-utils.js';
+        import { MultiSmartLaunch } from './smart.js';
+        // Initialize cornerstone
+        console.log("Cornerstore pieces", window.cornerstone, window.dicomParser, window.cornerstoneWADOImageLoader);
+        window.cornerstoneWADOImageLoader.external.cornerstone = cornerstone;
+        window.cornerstoneWADOImageLoader.external.dicomParser = dicomParser;
+
+        // Replace the static servers configuration with a textarea initialization
+        const defaultConfig = [
+            {
+                clientId: 'ehr_client_id',
+                fhirBaseUrl: "https://launcher.imaging.argo.run/v/r4/sim/WzMsIjg3YTMzOWQwLThjYWUtNDE4ZS04OWM3LTg2NTFlNmFhYjNjNiIsIiIsIkFVVE8iLDAsMCwwLCIiLCIiLCIiLCIiLCIiLCIiLCIiLDAsMSwiIl0/fhir",
+                scope: 'launch/patient patient/*.read openid fhirUser'
+            }
+        ];
+
+        // Initialize textarea when the page loads
+        window.onload = () => {
+            if (document.getElementById('configInput'))    {
+                document.getElementById('configInput').value = JSON.stringify(defaultConfig, null, 2);
+            }
+        };
+
+         const startFlow = window.startFlow = async () => {
+            const statusEl = document.getElementById('status');
+            const errorEl = document.getElementById('error');
+            
+            try {
+                statusEl.textContent = 'Starting authorization flow...';
+                const configText = document.getElementById('configInput').value;
+                const servers = JSON.parse(configText);
+                const client = MultiSmartLaunch.initialize(servers, ["smart-imaging-access-dual-launch"]);
+                const results = await client.authorize();
+                
+                // Display results
+                document.getElementById('tokens').textContent = 
+                    JSON.stringify(results, null, 2);
+                
+                statusEl.textContent = 'Authorization complete! Fetching data...';
+
+                // Fetch patient demographics from EHR
+                const ehrServer = results[0];
+                const patientResponse = await fetch(`${ehrServer.fhirBaseUrl}/Patient/${ehrServer.tokenResponse.patient}`, {
+                    headers: {
+                        'Authorization': `Bearer ${ehrServer.tokenResponse.access_token}`
+                    }
+                });
+                const patient = await patientResponse.json();
+
+                // Fetch imaging studies from imaging server
+                const imagingServer = results[1];
+                const studiesResponse = await fetch(`${imagingServer.fhirBaseUrl}/ImagingStudy?patient=${ehrServer.tokenResponse.patient}&_include=ImagingStudy:endpoint`, {
+                    headers: {
+                        'Authorization': `Bearer ${imagingServer.tokenResponse.access_token}`
+                    }
+                });
+                const studies = await studiesResponse.json();
+
+                // Display the data
+                displayPatientAndStudies(patient, studies, imagingServer.tokenResponse.access_token);
+                
+                statusEl.textContent = 'All data retrieved successfully!';
+            } catch (err) {
+                errorEl.textContent = `Error: ${err.message}`;
+                statusEl.textContent = 'Error occurred';
+            }
+        };
+
+        // Replace the loadAndDisplayImage function with:
+        window.loadAndDisplayImage = async function(endpoint, studyUid, token) {
+            const element = document.getElementById('imageViewer');
+            const controls = document.getElementById('imageControls');
+            const progressBar = document.getElementById('progressBar');
+            const sliceInfo = document.getElementById('sliceInfo');
+            
+            try {
+                // Clear previous event listeners by replacing the slider
+                const oldSlider = document.getElementById('sliceSlider');
+                const sliceSlider = oldSlider.cloneNode(true);
+                oldSlider.parentNode.replaceChild(sliceSlider, oldSlider);
+                
+                // Initialize viewer
+                const resizeHandler = await initializeViewer(element);
+                
+                // Clear previous image if it exists
+                if (cornerstone.getEnabledElement(element)) {
+                    cornerstone.reset(element);
+                }
+                
+                // Show controls and reset progress
+                controls.style.display = 'block';
+                progressBar.style.width = '0%';
+                
+                // Load the DICOM study
+                const instances = await loadDicomStudy(endpoint, studyUid, token, (received, total) => {
+                    if (total) {
+                        const progress = (received / total) * 100;
+                        progressBar.style.width = progress + '%';
+                    } else {
+                        const mbReceived = (received / (1024 * 1024)).toFixed(1);
+                        progressBar.style.width = '100%';
+                        progressBar.textContent = `${mbReceived} MB`;
+                        progressBar.style.textAlign = 'center';
+                        progressBar.style.color = 'white';
+                    }
+                });
+
+                // Function to display specific slice
+                async function displaySlice(index) {
+                    const instance = instances[index];
+                    const image = await cornerstone.loadImage(instance.imageId);
+                    await displayDicomImage(element, image, instance, sliceInfo, index, instances.length);
+                }
+
+                // Update slider for new study
+                sliceSlider.min = 0;
+                sliceSlider.max = instances.length - 1;
+                sliceSlider.value = 0;
+                
+                // Add slider event listener
+                sliceSlider.addEventListener('input', (e) => {
+                    displaySlice(parseInt(e.target.value));
+                });
+
+                // Display first slice
+                await displaySlice(0);
+
+            } catch (error) {
+                console.error('Error loading image:', error);
+                controls.style.display = 'none';
+            }
+        };
+
+        function displayPatientAndStudies(patient, studies, token) {
+            const patientDisplay = document.getElementById('patientInfo');
+            const studiesDisplay = document.getElementById('studiesList');
+
+            // Display patient info
+            patientDisplay.innerHTML = `
+                <h3>Patient Information</h3>
+                <p><strong>Name:</strong> ${patient.name?.[0]?.given?.join(' ')} ${patient.name?.[0]?.family}</p>
+                <p><strong>Gender:</strong> ${patient.gender}</p>
+                <p><strong>Birth Date:</strong> ${patient.birthDate}</p>
+            `;
+
+            // Helper function to resolve endpoint reference
+            const resolveEndpoint = (reference, resource, bundle) => {
+                if (reference.startsWith('#')) {
+                    return resource.contained?.find(r => r.id === reference.slice(1));
+                }
+                return bundle.entry?.find(e => 
+                    e.resource.resourceType === 'Endpoint' && 
+                    (e.fullUrl === reference || e.resource.id === reference.split('/')[1]))?.resource;
+            };
+
+            // Display studies with clickable links
+            const studiesList = studies.entry?.filter(e => e.resource.resourceType === 'ImagingStudy')
+                .map(entry => {
+                    const study = entry.resource;
+                    const endpoint = resolveEndpoint(study.endpoint[0].reference, study, studies);
+                    const studyUid = study.identifier?.[0]?.value?.slice(8); // Remove 'urn:oid:' prefix
+
+                    return `
+                        <div class="study-item">
+                            <h4>Study: ${study.modality?.map(m => m.code).join(', ') || 'Unknown Modality'}</h4>
+                            <p><strong>Date:</strong> ${study.started || 'Unknown'}</p>
+                            <p><strong>Status:</strong> ${study.status || 'Unknown'}</p>
+                            <p><strong>Accession:</strong> ${study.identifier?.[0]?.value || 'Unknown'}</p>
+                            <p><strong>Series Count:</strong> ${study.series?.length || 0}</p>
+                            <button onclick="loadAndDisplayImage('${endpoint.address}', '${studyUid}', '${token}')">
+                                View First Image
+                            </button>
+                        </div>
+                    `;
+                }).join('') || '<p>No imaging studies found</p>';
+
+            studiesDisplay.innerHTML = `
+                <h3>Imaging Studies</h3>
+                ${studiesList}
+            `;
+        }
+
+        // Initialize cornerstone
+        cornerstoneWADOImageLoader.external.cornerstone = cornerstone;
+        cornerstoneWADOImageLoader.external.dicomParser = dicomParser;
+    </script>
+    <style>
+        body { 
+            font-family: system-ui, -apple-system, sans-serif;
+            max-width: 800px;
+            margin: 2rem auto;
+            padding: 0 1rem;
+        }
+        .container {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        button {
+            padding: 0.5rem 1rem;
+            background: #0066cc;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            width: fit-content;
+        }
+        button:disabled {
+            background: #ccc;
+        }
+        pre {
+            background: #f5f5f5;
+            padding: 1rem;
+            border-radius: 4px;
+            overflow: auto;
+            max-height: 300px;
+        }
+        .error {
+            color: #cc0000;
+        }
+        .token-display {
+            margin-top: 1rem;
+        }
+        .config-input {
+            margin: 1rem 0;
+        }
+        #configInput {
+            background: #f5f5f5;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 0.5rem;
+        }
+        .study-item {
+            background: #f8f8f8;
+            padding: 1rem;
+            margin: 0.5rem 0;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Multi-SMART Auth Test</h1>
+        
+        <div class="config-input">
+            <h2>Server Configuration</h2>
+            <textarea id="configInput" rows="15" style="width: 100%; font-family: monospace;"></textarea>
+        </div>
+
+        <div>
+            <p><strong>Status:</strong> <span id="status">Not started</span></p>
+            <p class="error" id="error"></p>
+            <button id="startButton" onclick="startFlow()">Start Authorization Flow</button>
+        </div>
+
+        <div id="patientInfo"></div>
+        <div id="studiesList"></div>
+
+        <div class="token-display">
+            <h2>Tokens</h2>
+            <pre id="tokens">No response yet</pre>
+        </div>
+
+        <div id="imageControls" style="width: 512px; margin: 10px auto; display: none;">
+            <div id="downloadProgress" style="width: 100%; height: 20px; background: #f0f0f0; margin-bottom: 10px;">
+                <div id="progressBar" style="width: 0%; height: 100%; background: #0066cc; transition: width 0.3s;"></div>
+            </div>
+            <div id="seriesInfo" style="margin-bottom: 10px; font-weight: bold;"></div>
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <input type="range" id="sliceSlider" min="0" max="0" value="0" style="flex-grow: 1;">
+                <span id="sliceInfo">0/0</span>
+            </div>
+        </div>
+        <div id="imageViewer" style="width: 100%; max-width: 512px; height: 512px; margin: 10px auto;"></div>
+    </div>
+</body>
+</html>
