@@ -2,8 +2,81 @@
 <html>
 <head>
     <title>Multi-SMART Auth Test</title>
+    <script src="https://unpkg.com/cornerstone-core/dist/cornerstone.min.js"></script>
+    <script src="https://unpkg.com/dicom-parser/dist/dicomParser.min.js"></script>
+    <script src="https://unpkg.com/cornerstone-wado-image-loader@4.13.2/dist/cornerstoneWADOImageLoader.bundle.min.js"></script>
     <script type="module">
         import { MultiSmartLaunch } from './smart.js';
+        // Initialize cornerstone
+        console.log("Cornerstore pieces", window.cornerstone, window.dicomParser, window.cornerstoneWADOImageLoader);
+        window.cornerstoneWADOImageLoader.external.cornerstone = cornerstone;
+        window.cornerstoneWADOImageLoader.external.dicomParser = dicomParser;
+
+
+        // Add parseMultipart function
+        async function parseMultipart(response) {
+            const contentType = response.headers.get("Content-Type");
+            const boundary = contentType.match(/boundary="?([^";]+)"?/)[1];
+            const crlfBoundaryBytes = new TextEncoder().encode(`\r\n--${boundary}`);
+            const noCrlfBoundaryBytes = new TextEncoder().encode(`--${boundary}`);
+
+            const data = new Uint8Array(await response.arrayBuffer());
+            let state = "preamble";
+            let headerStart = -1;
+            let headerEnd = -1;
+            const parts = [];
+
+            function processPart(end) {
+                const headerBytes = data.subarray(headerStart, headerEnd);
+                const headerText = new TextDecoder().decode(headerBytes).trim();
+                const headers = new Headers();
+
+                for (const line of headerText.split(/\r\n/)) {
+                    if (!line.match(":")) continue;
+                    const [name, value] = line.split(": ");
+                    headers.append(name.toLowerCase(), value);
+                }
+
+                const body = data.subarray(headerEnd + 4, end + 1);
+                parts.push({ headers, body });
+            }
+
+            let matchCount = 0;
+            let boundaryBytes = noCrlfBoundaryBytes;
+
+            for (let i = 0; i < data.length; i++) {
+                if (data[i] === boundaryBytes[matchCount]) {
+                    matchCount++;
+                } else {
+                    matchCount = 0;
+                }
+
+                if (state === "header") {
+                    if (data.subarray(i - 3, i + 1).every((v, j) => v === "\r\n\r\n".charCodeAt(j))) {
+                        state = "body";
+                        headerEnd = i - 3;
+                    }
+                }
+
+                if (matchCount === boundaryBytes.length) {
+                    if (state === "preamble") {
+                        state = "header";
+                        headerStart = i + 1;
+                        boundaryBytes = crlfBoundaryBytes;
+                    } else if (state === "body") {
+                        processPart(i - boundaryBytes.length);
+                        state = "header";
+                        headerStart = i + 1;
+                    }
+                    matchCount = 0;
+                }
+            }
+
+            return {
+                headers: response.headers,
+                parts,
+            };
+        }
 
         // Replace the static servers configuration with a textarea initialization
         const defaultConfig = [
@@ -21,7 +94,7 @@
             }
         };
 
-        window.startFlow = async () => {
+         const startFlow = window.startFlow = async () => {
             const statusEl = document.getElementById('status');
             const errorEl = document.getElementById('error');
             
@@ -30,18 +103,134 @@
                 const configText = document.getElementById('configInput').value;
                 const servers = JSON.parse(configText);
                 const client = MultiSmartLaunch.initialize(servers, ["smart-imaging-access-dual-launch"]);
-                const tokens = await client.authorize();
+                const results = await client.authorize();
                 
-                // Display tokens
+                // Display results
                 document.getElementById('tokens').textContent = 
-                    JSON.stringify(tokens, null, 2);
+                    JSON.stringify(results, null, 2);
                 
-                statusEl.textContent = 'Authorization complete!';
+                statusEl.textContent = 'Authorization complete! Fetching data...';
+
+                // Fetch patient demographics from EHR
+                const ehrServer = results[0];
+                const patientResponse = await fetch(`${ehrServer.fhirBaseUrl}/Patient/${ehrServer.tokenResponse.patient}`, {
+                    headers: {
+                        'Authorization': `Bearer ${ehrServer.tokenResponse.access_token}`
+                    }
+                });
+                const patient = await patientResponse.json();
+
+                // Fetch imaging studies from imaging server
+                const imagingServer = results[1];
+                const studiesResponse = await fetch(`${imagingServer.fhirBaseUrl}/ImagingStudy?patient=${ehrServer.tokenResponse.patient}&_include=ImagingStudy:endpoint`, {
+                    headers: {
+                        'Authorization': `Bearer ${imagingServer.tokenResponse.access_token}`
+                    }
+                });
+                const studies = await studiesResponse.json();
+
+                // Display the data
+                displayPatientAndStudies(patient, studies, imagingServer.tokenResponse.access_token);
+                
+                statusEl.textContent = 'All data retrieved successfully!';
             } catch (err) {
                 errorEl.textContent = `Error: ${err.message}`;
                 statusEl.textContent = 'Error occurred';
             }
         };
+
+        // Make loadAndDisplayImage globally available
+        window.loadAndDisplayImage = async function(endpoint, studyUid, token) {
+            const element = document.getElementById('imageViewer');
+            
+            try {
+                const response = await fetch(`${endpoint}/studies/${studyUid}`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Accept': 'multipart/related; type=application/dicom'
+                    }
+                });
+
+                // Parse the multipart response and get the first DICOM instance
+                const parts = await parseMultipart(response);
+                const firstInstance = parts.parts[0].body;
+
+                // Create a blob URL for the DICOM data
+                const blob = new Blob([firstInstance]);
+                const imageId = cornerstoneWADOImageLoader.wadouri.fileManager.add(blob);
+
+                // Enable the element and load the image
+                await cornerstone.enable(element);
+                const image = await cornerstone.loadImage(imageId);
+                
+                // Display the image with viewport settings
+                cornerstone.displayImage(element, image);
+                
+                // Fit the image to the viewer
+                cornerstone.fitToWindow(element);
+                
+                // Optional: Add resize handler to maintain fit when window changes
+                window.addEventListener('resize', () => {
+                    cornerstone.resize(element);
+                    cornerstone.fitToWindow(element);
+                });
+            } catch (error) {
+                console.error('Error loading image:', error);
+            }
+        };
+
+        function displayPatientAndStudies(patient, studies, token) {
+            const patientDisplay = document.getElementById('patientInfo');
+            const studiesDisplay = document.getElementById('studiesList');
+
+            // Display patient info
+            patientDisplay.innerHTML = `
+                <h3>Patient Information</h3>
+                <p><strong>Name:</strong> ${patient.name?.[0]?.given?.join(' ')} ${patient.name?.[0]?.family}</p>
+                <p><strong>Gender:</strong> ${patient.gender}</p>
+                <p><strong>Birth Date:</strong> ${patient.birthDate}</p>
+            `;
+
+            // Helper function to resolve endpoint reference
+            const resolveEndpoint = (reference, resource, bundle) => {
+                if (reference.startsWith('#')) {
+                    return resource.contained?.find(r => r.id === reference.slice(1));
+                }
+                return bundle.entry?.find(e => 
+                    e.resource.resourceType === 'Endpoint' && 
+                    (e.fullUrl === reference || e.resource.id === reference.split('/')[1]))?.resource;
+            };
+
+            // Display studies with clickable links
+            const studiesList = studies.entry?.filter(e => e.resource.resourceType === 'ImagingStudy')
+                .map(entry => {
+                    const study = entry.resource;
+                    const endpoint = resolveEndpoint(study.endpoint[0].reference, study, studies);
+                    const studyUid = study.identifier?.[0]?.value?.slice(8); // Remove 'urn:oid:' prefix
+
+                    return `
+                        <div class="study-item">
+                            <h4>Study: ${study.modality?.map(m => m.code).join(', ') || 'Unknown Modality'}</h4>
+                            <p><strong>Date:</strong> ${study.started || 'Unknown'}</p>
+                            <p><strong>Status:</strong> ${study.status || 'Unknown'}</p>
+                            <p><strong>Accession:</strong> ${study.identifier?.[0]?.value || 'Unknown'}</p>
+                            <p><strong>Series Count:</strong> ${study.series?.length || 0}</p>
+                            <button onclick="loadAndDisplayImage('${endpoint.address}', '${studyUid}', '${token}')">
+                                View First Image
+                            </button>
+                        </div>
+                    `;
+                }).join('') || '<p>No imaging studies found</p>';
+
+            studiesDisplay.innerHTML = `
+                <h3>Imaging Studies</h3>
+                ${studiesList}
+            `;
+        }
+
+        // Initialize cornerstone
+        cornerstoneWADOImageLoader.external.cornerstone = cornerstone;
+        cornerstoneWADOImageLoader.external.dicomParser = dicomParser;
     </script>
     <style>
         body { 
@@ -89,6 +278,13 @@
             border-radius: 4px;
             padding: 0.5rem;
         }
+        .study-item {
+            background: #f8f8f8;
+            padding: 1rem;
+            margin: 0.5rem 0;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+        }
     </style>
 </head>
 <body>
@@ -106,10 +302,15 @@
             <button id="startButton" onclick="startFlow()">Start Authorization Flow</button>
         </div>
 
+        <div id="patientInfo"></div>
+        <div id="studiesList"></div>
+
         <div class="token-display">
             <h2>Tokens</h2>
             <pre id="tokens">No response yet</pre>
         </div>
+
+        <div id="imageViewer" style="width: 512px; height: 512px; margin: 10px auto;"></div>
     </div>
 </body>
 </html>

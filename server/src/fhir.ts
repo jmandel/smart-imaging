@@ -84,7 +84,8 @@ fhirRouter.get("/.well-known/smart-configuration", async (c, next) => {
       "client-confidential-asymmetric",  // Changed from symmetric to asymmetric
       "permission-patient",
       "permission-v2",
-      "context-standalone-patient"
+      "context-standalone-patient",
+      "smart-imaging-access-dual-launch"
     ]
   });
 });

@@ -58,7 +58,13 @@ class MultiSmartLaunch {
       if (this.authTab) {
         this.authTab.close();
       }
-      this.authPromiseResolve(this.tokens);
+      // Transform tokens into array format with capabilities
+      const results = Object.entries(this.tokens).map(([fhirBaseUrl, tokenResponse]) => ({
+        fhirBaseUrl,
+        capabilities: this.serverConfigs[fhirBaseUrl]?.capabilities || [],
+        tokenResponse
+      }));
+      this.authPromiseResolve(results);
       return;
     }
 
@@ -131,8 +137,6 @@ class MultiSmartLaunch {
       this.handleError(new Error(`Authorization error: ${data.error}`));
     }
   }
-
-  // ... (keep other utility methods like generateState, etc.)
 
   saveStateToSession() {
     const stateData = {
