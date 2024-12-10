@@ -142,8 +142,28 @@
         // Make loadAndDisplayImage globally available
         window.loadAndDisplayImage = async function(endpoint, studyUid, token) {
             const element = document.getElementById('imageViewer');
+            const controls = document.getElementById('imageControls');
+            const progressBar = document.getElementById('progressBar');
+            const sliceInfo = document.getElementById('sliceInfo');
             
             try {
+                // Clear previous event listeners by replacing the slider
+                const oldSlider = document.getElementById('sliceSlider');
+                const sliceSlider = oldSlider.cloneNode(true);
+                oldSlider.parentNode.replaceChild(sliceSlider, oldSlider);
+                
+                // Enable the element first
+                await cornerstone.enable(element);
+                
+                // Then clear previous image if it exists
+                if (cornerstone.getEnabledElement(element)) {
+                    cornerstone.reset(element);
+                }
+                
+                // Show controls and reset progress
+                controls.style.display = 'block';
+                progressBar.style.width = '0%';
+                
                 const response = await fetch(`${endpoint}/studies/${studyUid}`, {
                     headers: {
                         'Authorization': `Bearer ${token}`,
@@ -151,31 +171,123 @@
                     }
                 });
 
-                // Parse the multipart response and get the first DICOM instance
-                const parts = await parseMultipart(response);
-                const firstInstance = parts.parts[0].body;
+                const reader = response.body.getReader();
+                const contentLength = parseInt(response.headers.get('Content-Length') || '0');
+                let receivedLength = 0;
+                let chunks = [];
 
-                // Create a blob URL for the DICOM data
-                const blob = new Blob([firstInstance]);
-                const imageId = cornerstoneWADOImageLoader.wadouri.fileManager.add(blob);
+                // Read the stream
+                while(true) {
+                    const {done, value} = await reader.read();
+                    if (done) break;
+                    
+                    chunks.push(value);
+                    receivedLength += value.length;
+                    
+                    // Update progress bar or show MB received
+                    if (contentLength) {
+                        const progress = (receivedLength / contentLength) * 100;
+                        progressBar.style.width = progress + '%';
+                    } else {
+                        const mbReceived = (receivedLength / (1024 * 1024)).toFixed(1);
+                        progressBar.style.width = '100%';
+                        progressBar.textContent = `${mbReceived} MB`;
+                        progressBar.style.textAlign = 'center';
+                        progressBar.style.color = 'white';
+                    }
+                }
 
-                // Enable the element and load the image
-                await cornerstone.enable(element);
-                const image = await cornerstone.loadImage(imageId);
+                // Concatenate chunks
+                const allChunks = new Uint8Array(receivedLength);
+                let position = 0;
+                for (const chunk of chunks) {
+                    allChunks.set(chunk, position);
+                    position += chunk.length;
+                }
+
+                // Parse multipart response
+                const parts = await parseMultipart(new Response(allChunks, response));
                 
-                // Display the image with viewport settings
-                cornerstone.displayImage(element, image);
+                // Create blob URLs and track series information for all instances
+                const instances = parts.parts.map(part => {
+                    const blob = new Blob([part.body]);
+                    const imageId = cornerstoneWADOImageLoader.wadouri.fileManager.add(blob);
+                    return { imageId, metadata: null }; // We'll populate metadata after loading
+                });
+
+                // Function to display specific slice
+                async function displaySlice(index) {
+                    const instance = instances[index];
+                    const image = await cornerstone.loadImage(instance.imageId);
+                    
+                    // Initialize metadata with defaults first
+                    instance.metadata = {
+                        seriesNumber: 'Unknown',
+                        seriesDescription: ''
+                    };
+                    
+                    try {
+                        // Get the underlying DICOM dataset directly
+                        if (image && image.data && image.data.elements) {
+                            const elements = image.data.elements;
+                            const seriesNumber = image.data.string('x00200011');
+                            const seriesDescription = image.data.string('x0008103e');
+                            
+                            instance.metadata = {
+                                seriesNumber: seriesNumber || 'Unknown',
+                                seriesDescription: seriesDescription || ''
+                            };
+                        }
+                        console.log("elements", image?.data?.elements, instance);
+                    } catch (error) {
+                        console.log('Error getting metadata:', error);
+                    }
+                    
+                    // Update series information display
+                    const seriesInfo = document.getElementById('seriesInfo');
+                    seriesInfo.textContent = `Series ${instance.metadata.seriesNumber}${instance.metadata.seriesDescription ? ': ' + instance.metadata.seriesDescription : ''}`;
+                    
+                    // Display image with auto-adjusted viewport
+                    const viewport = cornerstone.getDefaultViewportForImage(element, image);
+                    
+                    // Enable VOI LUT auto-adjustments
+                    if (image.maxPixelValue === undefined) {
+                        const maxVoi = image.maxPixelValue || viewport.voi.windowWidth || 255;
+                        viewport.voi = {
+                            windowWidth: maxVoi,
+                            windowCenter: maxVoi / 2
+                        };
+                    }
+                    
+                    cornerstone.displayImage(element, image, viewport);
+                    cornerstone.fitToWindow(element);
+                    sliceInfo.textContent = `${index + 1}/${instances.length}`;
+                }
+
+                // Update slider for new study
+                sliceSlider.min = 0;
+                sliceSlider.max = instances.length - 1;
+                sliceSlider.value = 0;
                 
-                // Fit the image to the viewer
-                cornerstone.fitToWindow(element);
+                // Add slider event listener
+                sliceSlider.addEventListener('input', (e) => {
+                    displaySlice(parseInt(e.target.value));
+                });
+
+                // Display first slice
+                await displaySlice(0);
                 
-                // Optional: Add resize handler to maintain fit when window changes
-                window.addEventListener('resize', () => {
+                // Add resize handler
+                const resizeHandler = () => {
                     cornerstone.resize(element);
                     cornerstone.fitToWindow(element);
-                });
+                };
+                window.removeEventListener('resize', resizeHandler);
+                window.addEventListener('resize', resizeHandler);
+
             } catch (error) {
                 console.error('Error loading image:', error);
+                controls.style.display = 'none';
             }
         };
 
@@ -310,7 +422,17 @@
             <pre id="tokens">No response yet</pre>
         </div>
 
-        <div id="imageViewer" style="width: 512px; height: 512px; margin: 10px auto;"></div>
+        <div id="imageControls" style="width: 512px; margin: 10px auto; display: none;">
+            <div id="downloadProgress" style="width: 100%; height: 20px; background: #f0f0f0; margin-bottom: 10px;">
+                <div id="progressBar" style="width: 0%; height: 100%; background: #0066cc; transition: width 0.3s;"></div>
+            </div>
+            <div id="seriesInfo" style="margin-bottom: 10px; font-weight: bold;"></div>
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <input type="range" id="sliceSlider" min="0" max="0" value="0" style="flex-grow: 1;">
+                <span id="sliceInfo">0/0</span>
+            </div>
+        </div>
+        <div id="imageViewer" style="width: 100%; max-width: 512px; height: 512px; margin: 10px auto;"></div>
     </div>
 </body>
 </html>
