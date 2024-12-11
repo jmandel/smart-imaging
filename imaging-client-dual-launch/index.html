@@ -1,286 +1,489 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Multi-SMART Auth Test</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SMART on FHIR + DICOM Demo</title>
     <script src="https://unpkg.com/cornerstone-core/dist/cornerstone.min.js"></script>
-    <script src="https://unpkg.com/dicom-parser/dist/dicomParser.min.js"></script>
     <script src="https://unpkg.com/cornerstone-wado-image-loader@4.13.2/dist/cornerstoneWADOImageLoader.bundle.min.js"></script>
-    <script type="module">
-        import { parseMultipart, displayDicomImage, loadDicomStudy, initializeViewer } from './dicom-utils.js';
-        import { MultiSmartLaunch } from './smart.js';
-        // Initialize cornerstone
-        console.log("Cornerstore pieces", window.cornerstone, window.dicomParser, window.cornerstoneWADOImageLoader);
-        window.cornerstoneWADOImageLoader.external.cornerstone = cornerstone;
-        window.cornerstoneWADOImageLoader.external.dicomParser = dicomParser;
 
-        // Replace the static servers configuration with a textarea initialization
-        const defaultConfig = [
-            {
-                clientId: 'ehr_client_id',
-                fhirBaseUrl: "https://launcher.imaging.argo.run/v/r4/sim/WzMsIjg3YTMzOWQwLThjYWUtNDE4ZS04OWM3LTg2NTFlNmFhYjNjNiIsIiIsIkFVVE8iLDAsMCwwLCIiLCIiLCIiLCIiLCIiLCIiLCIiLDAsMSwiIl0/fhir",
-                scope: 'launch/patient patient/*.read openid fhirUser'
-            }
-        ];
-
-        // Initialize textarea when the page loads
-        window.onload = () => {
-            if (document.getElementById('configInput'))    {
-                document.getElementById('configInput').value = JSON.stringify(defaultConfig, null, 2);
-            }
-        };
-
-         const startFlow = window.startFlow = async () => {
-            const statusEl = document.getElementById('status');
-            const errorEl = document.getElementById('error');
-            
-            try {
-                statusEl.textContent = 'Starting authorization flow...';
-                const configText = document.getElementById('configInput').value;
-                const servers = JSON.parse(configText);
-                const client = MultiSmartLaunch.initialize(servers, ["smart-imaging-access-dual-launch"]);
-                const results = await client.authorize();
-                
-                // Display results
-                document.getElementById('tokens').textContent = 
-                    JSON.stringify(results, null, 2);
-                
-                statusEl.textContent = 'Authorization complete! Fetching data...';
-
-                // Fetch patient demographics from EHR
-                const ehrServer = results[0];
-                const patientResponse = await fetch(`${ehrServer.fhirBaseUrl}/Patient/${ehrServer.tokenResponse.patient}`, {
-                    headers: {
-                        'Authorization': `Bearer ${ehrServer.tokenResponse.access_token}`
-                    }
-                });
-                const patient = await patientResponse.json();
-
-                // Fetch imaging studies from imaging server
-                const imagingServer = results[1];
-                const studiesResponse = await fetch(`${imagingServer.fhirBaseUrl}/ImagingStudy?patient=${ehrServer.tokenResponse.patient}&_include=ImagingStudy:endpoint`, {
-                    headers: {
-                        'Authorization': `Bearer ${imagingServer.tokenResponse.access_token}`
-                    }
-                });
-                const studies = await studiesResponse.json();
-
-                // Display the data
-                displayPatientAndStudies(patient, studies, imagingServer.tokenResponse.access_token);
-                
-                statusEl.textContent = 'All data retrieved successfully!';
-            } catch (err) {
-                errorEl.textContent = `Error: ${err.message}`;
-                statusEl.textContent = 'Error occurred';
-            }
-        };
-
-        // Replace the loadAndDisplayImage function with:
-        window.loadAndDisplayImage = async function(endpoint, studyUid, token) {
-            const element = document.getElementById('imageViewer');
-            const controls = document.getElementById('imageControls');
-            const progressBar = document.getElementById('progressBar');
-            const sliceInfo = document.getElementById('sliceInfo');
-            
-            try {
-                // Clear previous event listeners by replacing the slider
-                const oldSlider = document.getElementById('sliceSlider');
-                const sliceSlider = oldSlider.cloneNode(true);
-                oldSlider.parentNode.replaceChild(sliceSlider, oldSlider);
-                
-                // Initialize viewer
-                const resizeHandler = await initializeViewer(element);
-                
-                // Clear previous image if it exists
-                if (cornerstone.getEnabledElement(element)) {
-                    cornerstone.reset(element);
-                }
-                
-                // Show controls and reset progress
-                controls.style.display = 'block';
-                progressBar.style.width = '0%';
-                
-                // Load the DICOM study
-                const instances = await loadDicomStudy(endpoint, studyUid, token, (received, total) => {
-                    if (total) {
-                        const progress = (received / total) * 100;
-                        progressBar.style.width = progress + '%';
-                    } else {
-                        const mbReceived = (received / (1024 * 1024)).toFixed(1);
-                        progressBar.style.width = '100%';
-                        progressBar.textContent = `${mbReceived} MB`;
-                        progressBar.style.textAlign = 'center';
-                        progressBar.style.color = 'white';
-                    }
-                });
-
-                // Function to display specific slice
-                async function displaySlice(index) {
-                    const instance = instances[index];
-                    const image = await cornerstone.loadImage(instance.imageId);
-                    await displayDicomImage(element, image, instance, sliceInfo, index, instances.length);
-                }
-
-                // Update slider for new study
-                sliceSlider.min = 0;
-                sliceSlider.max = instances.length - 1;
-                sliceSlider.value = 0;
-                
-                // Add slider event listener
-                sliceSlider.addEventListener('input', (e) => {
-                    displaySlice(parseInt(e.target.value));
-                });
-
-                // Display first slice
-                await displaySlice(0);
-
-            } catch (error) {
-                console.error('Error loading image:', error);
-                controls.style.display = 'none';
-            }
-        };
-
-        function displayPatientAndStudies(patient, studies, token) {
-            const patientDisplay = document.getElementById('patientInfo');
-            const studiesDisplay = document.getElementById('studiesList');
-
-            // Display patient info
-            patientDisplay.innerHTML = `
-                <h3>Patient Information</h3>
-                <p><strong>Name:</strong> ${patient.name?.[0]?.given?.join(' ')} ${patient.name?.[0]?.family}</p>
-                <p><strong>Gender:</strong> ${patient.gender}</p>
-                <p><strong>Birth Date:</strong> ${patient.birthDate}</p>
-            `;
-
-            // Helper function to resolve endpoint reference
-            const resolveEndpoint = (reference, resource, bundle) => {
-                if (reference.startsWith('#')) {
-                    return resource.contained?.find(r => r.id === reference.slice(1));
-                }
-                return bundle.entry?.find(e => 
-                    e.resource.resourceType === 'Endpoint' && 
-                    (e.fullUrl === reference || e.resource.id === reference.split('/')[1]))?.resource;
-            };
-
-            // Display studies with clickable links
-            const studiesList = studies.entry?.filter(e => e.resource.resourceType === 'ImagingStudy')
-                .map(entry => {
-                    const study = entry.resource;
-                    const endpoint = resolveEndpoint(study.endpoint[0].reference, study, studies);
-                    const studyUid = study.identifier?.[0]?.value?.slice(8); // Remove 'urn:oid:' prefix
-
-                    return `
-                        <div class="study-item">
-                            <h4>Study: ${study.modality?.map(m => m.code).join(', ') || 'Unknown Modality'}</h4>
-                            <p><strong>Date:</strong> ${study.started || 'Unknown'}</p>
-                            <p><strong>Status:</strong> ${study.status || 'Unknown'}</p>
-                            <p><strong>Accession:</strong> ${study.identifier?.[0]?.value || 'Unknown'}</p>
-                            <p><strong>Series Count:</strong> ${study.series?.length || 0}</p>
-                            <button onclick="loadAndDisplayImage('${endpoint.address}', '${studyUid}', '${token}')">
-                                View First Image
-                            </button>
-                        </div>
-                    `;
-                }).join('') || '<p>No imaging studies found</p>';
-
-            studiesDisplay.innerHTML = `
-                <h3>Imaging Studies</h3>
-                ${studiesList}
-            `;
-        }
-
-        // Initialize cornerstone
-        cornerstoneWADOImageLoader.external.cornerstone = cornerstone;
-        cornerstoneWADOImageLoader.external.dicomParser = dicomParser;
-    </script>
+    <script src="https://unpkg.com/dicom-parser/dist/dicomParser.min.js"></script>
+    
     <style>
-        body { 
-            font-family: system-ui, -apple-system, sans-serif;
-            max-width: 800px;
-            margin: 2rem auto;
-            padding: 0 1rem;
+        :root {
+            --ehr-color: #4CAF50;
+            --imaging-fhir-color: #2196F3;
+            --dicom-color: #9C27B0;
+            --border-radius: 8px;
         }
-        .container {
-            display: flex;
-            flex-direction: column;
-            gap: 1rem;
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f5f5f5;
         }
+
+        .source-label {
+            position: absolute;
+            top: -10px;
+            left: 10px;
+            background: white;
+            padding: 0 8px;
+            font-size: 12px;
+            border-radius: 4px;
+        }
+
+        .source-container {
+            position: relative;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: var(--border-radius);
+            background: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .ehr-source {
+            border: 2px solid var(--ehr-color);
+        }
+        .ehr-source .source-label {
+            color: var(--ehr-color);
+        }
+
+        .imaging-fhir-source {
+            border: 2px solid var(--imaging-fhir-color);
+        }
+        .imaging-fhir-source .source-label {
+            color: var(--imaging-fhir-color);
+        }
+
+        .dicom-source {
+            border: 2px solid var(--dicom-color);
+        }
+        .dicom-source .source-label {
+            color: var(--dicom-color);
+        }
+
+        .app-container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            margin-bottom: 20px;
+        }
+
+        .content-grid {
+            display: grid;
+            grid-template-columns: 300px 1fr;
+            gap: 20px;
+        }
+
+        @media (max-width: 768px) {
+            .content-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        #configEditor {
+            width: 100%;
+            height: 200px;
+            font-family: monospace;
+            margin-bottom: 10px;
+            border-radius: var(--border-radius);
+            padding: 10px;
+            border: 1px solid #ddd;
+        }
+
         button {
-            padding: 0.5rem 1rem;
-            background: #0066cc;
+            background: #007bff;
             color: white;
             border: none;
+            padding: 8px 16px;
+            border-radius: var(--border-radius);
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #0056b3;
+        }
+
+        .token-response {
+            font-family: monospace;
+            white-space: pre-wrap;
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: var(--border-radius);
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+      .image-container {
+          width: 100%;
+          height: 500px;
+          background: black;
+          position: relative;
+          display: flex;          /* Add flex display */
+          flex-direction: column; /* Stack children vertically */
+      }
+
+      #dicomImage {
+          flex: 1;               /* Take up all available space */
+          position: relative;    /* For proper canvas positioning */
+          min-height: 0;        /* Important for Firefox flex behavior */
+      }
+
+      /* Target Cornerstone's canvas specifically */
+      .cornerstone-canvas {
+          height: 100% !important; /* Force full height */
+          width: 100% !important;  /* Force full width */
+          display: block;
+      }
+
+        .controls {
+            position: absolute;
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.7);
+            padding: 8px 16px;
+            border-radius: 20px;
+            color: white;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .toggle-config {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 1000;
+            background: #333;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            cursor: pointer;
+            opacity: 0.8;
+        }
+
+        .config-panel {
+            transition: transform 0.3s ease;
+        }
+
+        .config-panel.hidden {
+            transform: translateY(100%);
+            position: fixed;
+            bottom: -100%;
+        }
+
+        .auth-needed {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100px;
+            color: #666;
+            font-style: italic;
+        }
+
+        .studies-list {
+            min-height: 100px;
+        }
+
+        .studies-list ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .studies-list li {
+            padding: 8px;
+            margin: 4px 0;
             border-radius: 4px;
             cursor: pointer;
-            width: fit-content;
+            transition: background-color 0.2s;
         }
-        button:disabled {
-            background: #ccc;
+
+        .studies-list li:hover {
+            background-color: #f0f0f0;
         }
-        pre {
-            background: #f5f5f5;
-            padding: 1rem;
-            border-radius: 4px;
-            overflow: auto;
-            max-height: 300px;
+
+        .studies-list li.selected {
+            background-color: #e3f2fd;
         }
-        .error {
-            color: #cc0000;
-        }
-        .token-display {
-            margin-top: 1rem;
-        }
-        .config-input {
-            margin: 1rem 0;
-        }
-        #configInput {
-            background: #f5f5f5;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            padding: 0.5rem;
-        }
-        .study-item {
-            background: #f8f8f8;
-            padding: 1rem;
-            margin: 0.5rem 0;
-            border-radius: 4px;
-            border: 1px solid #ddd;
+
+        .progress-bar {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            height: 4px;
+            background-color: #4CAF50;
+            transition: width 0.3s;
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>Multi-SMART Auth Test</h1>
-        
-        <div class="config-input">
-            <h2>Server Configuration</h2>
-            <textarea id="configInput" rows="15" style="width: 100%; font-family: monospace;"></textarea>
+    <div class="app-container">
+        <div class="header">
+            <h1>SMART on FHIR + DICOM Demo</h1>
         </div>
 
-        <div>
-            <p><strong>Status:</strong> <span id="status">Not started</span></p>
-            <p class="error" id="error"></p>
-            <button id="startButton" onclick="startFlow()">Start Authorization Flow</button>
-        </div>
+        <div class="content-grid">
+            <div class="patient-panel">
+                <div class="source-container ehr-source">
+                    <div class="source-label">EHR FHIR</div>
+                    <div class="auth-needed">
+                        Authorization needed to view patient information
+                    </div>
+                </div>
 
-        <div id="patientInfo"></div>
-        <div id="studiesList"></div>
-
-        <div class="token-display">
-            <h2>Tokens</h2>
-            <pre id="tokens">No response yet</pre>
-        </div>
-
-        <div id="imageControls" style="width: 512px; margin: 10px auto; display: none;">
-            <div id="downloadProgress" style="width: 100%; height: 20px; background: #f0f0f0; margin-bottom: 10px;">
-                <div id="progressBar" style="width: 0%; height: 100%; background: #0066cc; transition: width 0.3s;"></div>
+                <div class="source-container imaging-fhir-source">
+                    <div class="source-label">Imaging FHIR</div>
+                    <div class="studies-list">
+                        <div class="auth-needed">
+                            Authorization needed to view imaging studies
+                        </div>
+                    </div>
+                </div>
             </div>
-            <div id="seriesInfo" style="margin-bottom: 10px; font-weight: bold;"></div>
-            <div style="display: flex; align-items: center; gap: 10px;">
-                <input type="range" id="sliceSlider" min="0" max="0" value="0" style="flex-grow: 1;">
-                <span id="sliceInfo">0/0</span>
+
+            <div class="viewer-panel">
+                <div class="source-container dicom-source">
+                    <div class="source-label">DICOM</div>
+                    <div class="image-container">
+                        <div id="dicomImage" class="auth-needed">
+                        </div>
+                        <div class="controls">
+                            <span id="seriesInfo">No series loaded</span>
+                            <span>|</span>
+                            <span id="sliceInfo">0/0</span>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
-        <div id="imageViewer" style="width: 100%; max-width: 512px; height: 512px; margin: 10px auto;"></div>
+
+        <button class="toggle-config" onclick="toggleConfig()">Toggle Config</button>
+
+        <div class="config-panel">
+            <div class="source-container">
+                <h3>Configuration</h3>
+                <textarea id="configEditor">
+{
+    "servers": [
+        {
+            "clientId": "ehr_client_id",
+            "fhirBaseUrl": "https://launcher.imaging.argo.run/v/r4/sim/WzMsIjg3YTMzOWQwLThjYWUtNDE4ZS04OWM3LTg2NTFlNmFhYjNjNiIsIiIsIkFVVE8iLDAsMCwwLCIiLCIiLCIiLCIiLCIiLCIiLCIiLDAsMSwiIl0/fhir",
+            "scope": "launch/patient patient/*.read openid fhirUser"
+        }
+    ],
+    "capabilities": ["smart-imaging-access-dual-launch"]
+}
+                </textarea>
+                <button onclick="startAuth()">Start Authorization</button>
+            </div>
+
+            <div class="source-container">
+                <h3>Token Responses</h3>
+                <div id="tokenResponses" class="token-response"></div>
+            </div>
+        </div>
     </div>
+
+    <script type="module">
+        import { MultiSmartLaunch } from './smart.js';
+        import { loadDicomStudy, initializeViewer, displayDicomImage } from './dicom-utils.js';
+
+        cornerstoneWADOImageLoader.external.cornerstone = cornerstone;
+        cornerstoneWADOImageLoader.external.dicomParser = dicomParser;
+
+
+        let currentStudy = null;
+        let currentImages = [];
+        let currentImageIndex = 0;
+
+        function resolveEndpointReference(study, bundle) {
+            const endpointRef = study.endpoint?.[0]?.reference;
+            if (!endpointRef) return null;
+
+            // Handle contained resources
+            if (endpointRef.startsWith('#')) {
+                return study.contained?.find(r => r.id === endpointRef.slice(1));
+            }
+
+            // Handle bundle entries
+            if (bundle?.entry) {
+                const entry = bundle.entry.find(e => 
+                    e.fullUrl === endpointRef || 
+                    e.resource?.id === endpointRef.split('/').pop()
+                );
+                return entry?.resource;
+            }
+
+            return null;
+        }
+
+        async function loadPatient(fhirServer, token) {
+            const response = await fetch(`${fhirServer}/Patient/${token.patient}`, {
+                headers: {
+                    'Authorization': `Bearer ${token.access_token}`,
+                    'Accept': 'application/fhir+json'
+                }
+            });
+            
+            if (!response.ok) throw new Error('Failed to fetch patient');
+            
+            const patient = await response.json();
+            const patientPanel = document.querySelector('.ehr-source');
+            patientPanel.innerHTML = `
+                <div class="source-label">EHR FHIR</div>
+                <div>
+                    <h3>${patient.name?.[0]?.given?.join(' ')} ${patient.name?.[0]?.family}</h3>
+                    <p>DOB: ${patient.birthDate || 'Unknown'}</p>
+                    <p>Gender: ${patient.gender || 'Unknown'}</p>
+                    ${patient.identifier?.[0] ? `<p>ID: ${patient.identifier[0].value}</p>` : ''}
+                </div>
+            `;
+        }
+
+        async function loadStudies(imagingServer, token) {
+            const response = await fetch(`${imagingServer}/ImagingStudy?patient=${token.patient}`, {
+                headers: {
+                    'Authorization': `Bearer ${token.access_token}`,
+                    'Accept': 'application/fhir+json'
+                }
+            });
+            
+            if (!response.ok) throw new Error('Failed to fetch studies');
+            
+            const bundle = await response.json();
+            const studiesList = document.querySelector('.studies-list');
+            studiesList.innerHTML = `
+                <h3>Imaging Studies</h3>
+                <ul>
+                    ${(bundle.entry || []).map(entry => {
+                        const study = entry.resource;
+                        const endpoint = resolveEndpointReference(study, bundle);
+                        if (!endpoint?.address) return '';
+                        return `
+                            <li onclick="window.selectStudy('${study.id}', '${endpoint.address}', '${token.access_token}')">
+                                ${study.modality?.[0]?.code || 'Unknown'} - 
+                                ${new Date(study.started).toLocaleDateString()}
+                            </li>
+                        `;
+                    }).join('')}
+                </ul>
+            `;
+
+            // Auto-select first study if available
+            const firstStudy = bundle.entry?.[0]?.resource;
+            if (firstStudy) {
+                const endpoint = resolveEndpointReference(firstStudy, bundle);
+                if (endpoint?.address) {
+                    selectStudy(firstStudy.id, endpoint.address, token.access_token);
+                }
+            }
+        }
+
+        async function selectStudy(studyId, wadoRsEndpoint, token) {
+            document.querySelectorAll('.studies-list li').forEach(li => {
+                li.classList.remove('selected');
+                if (li.onclick.toString().includes(studyId)) {
+                    li.classList.add('selected');
+                }
+            });
+
+            const progressBar = document.createElement('div');
+            progressBar.className = 'progress-bar';
+            document.querySelector('.image-container').appendChild(progressBar);
+
+            try {
+                currentImages = await loadDicomStudy(
+                    wadoRsEndpoint, 
+                    studyId, 
+                    token,
+                    (loaded, total) => {
+                        const percent = (loaded / total) * 100;
+                        progressBar.style.width = `${percent}%`;
+                    }
+                );
+
+                if (currentImages.length > 0) {
+                    currentImageIndex = 0;
+                    await showCurrentImage();
+                }
+            } catch (error) {
+                console.error('Error loading study:', error);
+                alert('Failed to load study images');
+            } finally {
+                progressBar.remove();
+            }
+        }
+
+        async function showCurrentImage() {
+            const element = document.getElementById('dicomImage');
+            const instance = currentImages[currentImageIndex];
+            
+            const image = await cornerstone.loadAndCacheImage(instance.imageId);
+            await displayDicomImage(
+                element, 
+                image, 
+                instance,
+                document.getElementById('sliceInfo'),
+                currentImageIndex,
+                currentImages.length
+            );
+        }
+
+        window.selectStudy = selectStudy;
+
+        window.toggleConfig = function() {
+            document.querySelector('.config-panel').classList.toggle('hidden');
+        };
+
+        window.startAuth = async function() {
+            try {
+                const config = JSON.parse(document.getElementById('configEditor').value);
+                const launcher = MultiSmartLaunch.initialize(config.servers, config.capabilities);
+                const results = await launcher.authorize();
+                
+                document.getElementById('tokenResponses').textContent = 
+                    JSON.stringify(results, null, 2);
+
+                // Find EHR and Imaging servers from results
+                const ehrServer = results.find(r => !r.capabilities.includes('smart-imaging-access-dual-launch'));
+                const imagingServer = results.find(r => r.capabilities.includes('smart-imaging-access-dual-launch'));
+
+                if (ehrServer) {
+                    await loadPatient(ehrServer.fhirBaseUrl, ehrServer.tokenResponse);
+                }
+
+                if (imagingServer) {
+                    await loadStudies(imagingServer.fhirBaseUrl, imagingServer.tokenResponse);
+                }
+
+            } catch (error) {
+                console.error('Authorization failed:', error);
+                alert('Authorization failed: ' + error.message);
+            }
+        };
+
+        // Initialize viewer and keyboard controls
+        const element = document.getElementById('dicomImage');
+        initializeViewer(element);
+
+        // Add keyboard controls for image navigation
+        document.addEventListener('keydown', async (e) => {
+            if (!currentImages.length) return;
+            
+            if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+                currentImageIndex = (currentImageIndex + 1) % currentImages.length;
+                await showCurrentImage();
+            } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+                currentImageIndex = (currentImageIndex - 1 + currentImages.length) % currentImages.length;
+                await showCurrentImage();
+            }
+        });
+    </script>
 </body>
 </html>
