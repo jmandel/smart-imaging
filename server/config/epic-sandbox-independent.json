@@ -2,16 +2,17 @@
   "authorization": {
     "type": "smart-on-fhir-independent",
     "fhirBaseUrl": "https://ihe-nimbus.epic.com/FHIRProxy/api/FHIR/R4",
+    "clientLookupUrl": "https://ihe-nimbus.epic.com/FHIRProxy/OAuth2/clientinfo",
     "scope": "system/Patient.read",
     "client": {
-      "client_id": "3926ed51-a564-46a1-8126-5457bed5984a"
+      "client_id": "2bb0eccb-f498-474d-9224-79647234c7a8"
     }
   },
   "images": {
     "type": "dicom-web",
     "lookup": "studies-by-mrn",
     "mrn": [
-      "identifier.where(type.text = 'EPIC').value"
+      "'293ee354-f8ad-4345-b10c-759fdfdcc082'"
     ],
     "endpoint": "http://orthanc:8042/dicom-web",
     "authentication": {

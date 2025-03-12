@@ -1,9 +1,15 @@
 // oauth.ts
-import { Hono, HTTPException } from "./deps.ts";
-import { getCookie, setCookie } from "./deps.ts";
+import { 
+  Hono, 
+  HTTPException, 
+  getCookie, 
+  setCookie, 
+  cors, 
+  crypto, 
+  jose, 
+  StatusCode 
+} from "./deps.ts";
 import { HonoEnv, isIndependentSmartTenant } from "./types.ts";
-import { crypto } from "https://deno.land/std@0.203.0/crypto/mod.ts";
-import { cors } from "./deps.ts";
 
 // Add these interfaces after the imports and before the in-memory stores
 
@@ -24,6 +30,10 @@ interface EHRFlow {
 }
 
 interface AuthorizationRequest {
+  // deno-lint-ignore no-explicit-any
+  ehrFhirUserRaw?: any;
+  // deno-lint-ignore no-explicit-any
+  userUrl?: any;
   client_id: string;
   redirect_uri: string;
   scope: string;
@@ -31,8 +41,10 @@ interface AuthorizationRequest {
   created_at: Date;
   approved: boolean;
   ehrTokenResponse: EHRTokenResponse | null;
-  clientRegistration: Record<string, unknown>;
+  clientRegistration: Record<string, unknown> | ClientMetadata;
+  // deno-lint-ignore no-explicit-any
   ehrFhirUser?: any;
+  // deno-lint-ignore no-explicit-any
   ehrPatient?: any;
 }
 
@@ -48,10 +60,135 @@ interface TokenData {
   created_at: Date;
 }
 
+// Add this interface for client metadata
+interface ClientMetadata {
+  client_id: string;
+  client_secret?: string;
+  redirect_uris: string[];
+  grant_types?: string[];
+  client_name?: string;
+  token_endpoint_auth_method?: string;
+  jwks_uri?: string;  // URL to the client's JWK Set
+  jwks?: jose.JSONWebKeySet;  // Directly provided JWK Set
+  // Add other fields as needed
+}
+
 // In-memory stores
 const authorizationRequests = new Map<string, AuthorizationRequest>();
 export const tokens = new Map<string, TokenData>();
 const sessions = new Map<string, { ehrFlow?: EHRFlow }>();
+
+// Add a simple in-memory JTI cache for preventing replay attacks
+const usedJtis = new Map<string, { exp: number, iat: Date }>();
+
+// Add a function to clean up expired JTIs occasionally
+function cleanupExpiredJtis() {
+  const now = new Date();
+  for (const [jti, data] of usedJtis.entries()) {
+    // Remove JTIs that have been stored for more than 5 minutes
+    if ((now.getTime() - data.iat.getTime()) > 5 * 60 * 1000) {
+      usedJtis.delete(jti);
+    }
+  }
+}
+
+// Add a function to verify client JWT assertions
+async function verifyClientAssertion(
+  clientAssertion: string, 
+  clientMetadata: ClientMetadata,
+  tokenEndpointUrl: string
+): Promise<boolean> {
+  try {
+    // Get header and payload separately - this is the correct approach
+    const header = jose.decodeProtectedHeader(clientAssertion);
+    const _payload = jose.decodeJwt(clientAssertion);
+    
+    if (!header.kid) {
+      console.error("JWT is missing 'kid' header");
+      return false;
+    }
+    
+    if (header.typ !== 'JWT') {
+      console.error("JWT has invalid 'typ' header, expected 'JWT'");
+      return false;
+    }
+    
+    // Ensure we have the client's public keys
+    let jwks: jose.JSONWebKeySet | null = null;
+    
+    // Try to get keys from jwks_uri if available
+    if (clientMetadata.jwks_uri) {
+      try {
+        const response = await fetch(clientMetadata.jwks_uri);
+        if (response.ok) {
+          jwks = await response.json() as jose.JSONWebKeySet;
+        } else {
+          console.error(`Failed to fetch JWK Set from ${clientMetadata.jwks_uri}: ${response.status}`);
+        }
+      } catch (error) {
+        console.error(`Error fetching JWK Set: ${error}`);
+      }
+    }
+    
+    // Fall back to direct jwks if provided
+    if (!jwks && clientMetadata.jwks) {
+      jwks = clientMetadata.jwks;
+    }
+    
+    if (!jwks || !jwks.keys || jwks.keys.length === 0) {
+      console.error("No public keys available for client");
+      return false;
+    }
+    
+    // Find the key matching the kid in the JWT header
+    const signingKey = jwks.keys.find(key => key.kid === header.kid);
+    if (!signingKey) {
+      console.error(`No key found with id ${header.kid}`);
+      return false;
+    }
+    
+    // Verify JWT signature and claims
+    const { payload: verifiedPayload } = await jose.jwtVerify(
+      clientAssertion,
+      await jose.importJWK(signingKey),
+      {
+        audience: tokenEndpointUrl,
+        issuer: clientMetadata.client_id,
+        subject: clientMetadata.client_id,
+        clockTolerance: 5 * 60, // 5 minutes tolerance for clock skew
+      }
+    );
+    
+    // Verify required claims
+    if (!verifiedPayload.jti || typeof verifiedPayload.jti !== 'string') {
+      console.error("JWT is missing 'jti' claim");
+      return false;
+    }
+    
+    // Check if this JTI has been used before (prevent replay attacks)
+    if (usedJtis.has(verifiedPayload.jti as string)) {
+      console.error("JWT with this 'jti' has already been used");
+      return false;
+    }
+    
+    // Store JTI to prevent reuse
+    usedJtis.set(verifiedPayload.jti as string, { 
+      exp: verifiedPayload.exp as number, 
+      iat: new Date() 
+    });
+    
+    // Occasionally clean up expired JTIs
+    if (Math.random() < 0.1) { // ~10% chance on each verification
+      cleanupExpiredJtis();
+    }
+    
+    // If we got here, everything validated
+    return true;
+  } catch (error) {
+    console.error("JWT verification failed:", error);
+    return false;
+  }
+}
 
 // Helper to generate random bytes as base64url
 function generateRandomString() {
@@ -85,6 +222,10 @@ function renderAuthorizationScreen(authRequest: AuthorizationRequest) {
   const patientName = authRequest.ehrPatient?.name?.[0]?.text ||
                      `${authRequest.ehrPatient?.name?.[0]?.given?.[0] || ''} ${authRequest.ehrPatient?.name?.[0]?.family || ''}`.trim() ||
                      'Unknown';
+  
+  // Get the client name from metadata if available, otherwise fall back to client_id
+  const clientMetadata = authRequest.clientRegistration as unknown as ClientMetadata;
+  const clientName = clientMetadata.client_name || authRequest.client_id;
 
   return `
     <!DOCTYPE html>
@@ -139,7 +280,7 @@ function renderAuthorizationScreen(authRequest: AuthorizationRequest) {
             </div>
             
             <div class="info">
-                <p>The application <strong>${authRequest.client_id}</strong> is requesting access to imaging studies.</p>
+                <p>The application <strong>${clientName}</strong> is requesting access to imaging studies.</p>
                 <p>User: ${userName}</p>
                 <p>Patient: ${patientName}</p>
             </div>
@@ -153,6 +294,22 @@ function renderAuthorizationScreen(authRequest: AuthorizationRequest) {
     </body>
     </html>
   `;
+}
+
+// Add a helper function for standardized error redirects
+function errorRedirect(redirectUri: string, error: string, state?: string, errorDescription?: string) {
+  const params = new URLSearchParams();
+  params.set('error', error);
+  
+  if (state) {
+    params.set('state', state);
+  }
+  
+  if (errorDescription) {
+    params.set('error_description', errorDescription);
+  }
+  
+  return `${redirectUri}?${params.toString()}`;
 }
 
 export const oauthRouter = new Hono<HonoEnv>()
@@ -205,23 +362,39 @@ export const oauthRouter = new Hono<HonoEnv>()
     } = query;
 
     // Validate required parameters
-    if (!response_type || response_type !== "code" ||
-        !client_id || !redirect_uri || !scope || !state) {
-      return c.redirect(`${redirect_uri}?error=invalid_request&state=${state}`);
+    if (!response_type || !client_id || !redirect_uri || !scope) {
+      // Don't redirect if redirect_uri is missing or invalid
+      c.status(400);
+      return c.text("Invalid request: missing required parameters");
+    }
+
+    if (response_type !== "code") {
+      return c.redirect(errorRedirect(
+        redirect_uri as string,
+        "unsupported_response_type",
+        state as string,
+        "This server only supports the authorization code flow"
+      ));
+    }
+
+    if (!state) {
+      return c.redirect(errorRedirect(
+        redirect_uri as string,
+        "invalid_request",
+        undefined,
+        "The state parameter is required"
+      ));
     }
 
     try {
       // Create authorization request record
       const authCode = generateRandomString();
-      // TODO: Fetch and validate client registration
-      // const clientRegistration = await fetch(`${ehrBaseUrl}/.well-known/client-registrations/${client_id}`).then(r => r.json());
-      const clientRegistration = {}; // Placeholder for now
-
-      // TODO: Validate redirect_uri against registered URIs
-      // if (!clientRegistration.redirect_uris?.includes(redirect_uri)) {
-      //   return c.redirect(`${redirect_uri}?error=invalid_redirect_uri&state=${state}`);
-      // }
-
+      
+      // Get tenant config
+      const tenantConfig = c.var.tenant.config;
+      
+      // Initialize with basic client information
+      // We'll fetch complete metadata after EHR authentication
       const authRequest = {
         client_id,
         redirect_uri,
@@ -230,7 +403,7 @@ export const oauthRouter = new Hono<HonoEnv>()
         created_at: new Date(),
         approved: false,
         ehrTokenResponse: null,
-        clientRegistration
+        clientRegistration: {} // Empty for now, will populate later
       };
 
       // Store the authorization request
@@ -252,7 +425,6 @@ export const oauthRouter = new Hono<HonoEnv>()
       console.log("authzSession", session);
 
       // Get EHR endpoints from tenant config
-      const tenantConfig = c.var.tenant.config;
       const ehrBaseUrl = tenantConfig.authorization.fhirBaseUrl;
       
       // Discover endpoints
@@ -284,6 +456,15 @@ export const oauthRouter = new Hono<HonoEnv>()
 
     } catch (error) {
       console.error("Authorization initialization failed:", error);
+      // Only redirect if we have a valid redirect_uri and state
+      if (redirect_uri && state) {
+        return c.redirect(errorRedirect(
+          redirect_uri as string,
+          "server_error",
+          state as string,
+          "The server encountered an unexpected condition"
+        ));
+      }
       throw new HTTPException(500, { message: error.message });
     }
   })
@@ -340,15 +521,70 @@ export const oauthRouter = new Hono<HonoEnv>()
       }
 
       const ehrTokenResponse = await tokenResponse.json();
-      console.log("EHR's Token Response", ehrTokenResponse);
+      console.log("EHR's Token Response", JSON.stringify(ehrTokenResponse, null, 2));
 
       // Update auth request with EHR token response
       authRequest.ehrTokenResponse = ehrTokenResponse;
+
+      // NOW fetch client metadata using EHR access token
+      // First try from tenant config, then fallback to discovery document
+      let clientLookupUrl = tenantConfig.authorization.clientLookupUrl;
+
+      // If not in tenant config, check for client_info_endpoint in the discovery document
+      if (!clientLookupUrl && discovery.client_info_endpoint) {
+        clientLookupUrl = discovery.client_info_endpoint;
+        console.log(`Using client_info_endpoint from discovery: ${clientLookupUrl}`);
+      }
+
+      if (clientLookupUrl) {
+        try {
+          // Ensure the URL ends with a trailing slash before appending the client_id
+          const baseUrl = clientLookupUrl.endsWith('/') ? clientLookupUrl : `${clientLookupUrl}/`;
+          const clientMetadataResponse = await fetch(`${baseUrl}${authRequest.client_id}`, {
+            headers: {
+              'Authorization': `Bearer ${ehrTokenResponse.access_token}`,
+              'Accept': 'application/json'
+            }
+          });
+          
+          if (clientMetadataResponse.ok) {
+            const clientRegistration = await clientMetadataResponse.json();
+            authRequest.clientRegistration = clientRegistration;
+            
+            // Validate redirect_uri against registered URIs
+            if (Array.isArray(clientRegistration.redirect_uris) && 
+                !clientRegistration.redirect_uris.includes(authRequest.redirect_uri as string)) {
+              console.error(`Invalid redirect_uri: ${authRequest.redirect_uri}. Allowed URIs:`, clientRegistration.redirect_uris);
+              return c.redirect(errorRedirect(
+                authRequest.redirect_uri as string,
+                "invalid_request",
+                authRequest.state as string,
+                "The redirect_uri is not registered for this client"
+              ));
+            }
+          } else {
+            console.warn(`Client metadata not found for ${authRequest.client_id}: ${clientMetadataResponse.status}`);
+            if (clientMetadataResponse.status === 404) {
+              return c.redirect(errorRedirect(
+                authRequest.redirect_uri as string,
+                "unauthorized_client",
+                authRequest.state as string,
+                "Client not found or not registered"
+              ));
+            }
+          }
+        } catch (error) {
+          console.error("Error fetching client metadata:", error);
+        }
+      } else {
+        console.warn("No client lookup URL available, skipping client validation");
+      }
 
       // Fetch both user and patient information
       if (ehrTokenResponse.id_token) {
         const [_header, payload, _signature] = ehrTokenResponse.id_token.split('.');
         const decodedPayload = JSON.parse(atob(payload));
+        console.log("ID Token Payload", JSON.stringify(decodedPayload, null, 2));
         
         try {
           // Fetch FHIR user info
@@ -363,12 +599,22 @@ export const oauthRouter = new Hono<HonoEnv>()
                 'Accept': 'application/fhir+json'
               }
             });
-            
+
+            console.log("Got user", userResponse);
             if (userResponse.ok) {
               authRequest.ehrFhirUser = await userResponse.json();
               authRequest.userUrl = fhirUserUrl;
-              authRequest.ehrFihrUserRaw = decodedPayload
+              authRequest.ehrFhirUserRaw = decodedPayload
+            } else {
+              console.log("Failed to get fhirUser", fhirUserUrl)
             }
+          }
+
+          // Check for patient context - first from access token
+          if (!ehrTokenResponse.patient && decodedPayload.fhirUser) {
+            // If no patient in access token, try to extract from fhirUser in id_token
+            authRequest.ehrPatient = authRequest.ehrFhirUser;
+            console.log(`Using patient ${decodedPayload.fhirUser} from id_token's fhirUser claim`);
           }
 
           // Fetch patient info if we have a patient context
@@ -433,48 +679,111 @@ export const oauthRouter = new Hono<HonoEnv>()
     }
   })
 
-  // Token endpoint
+  // Token endpoint - implement standardized error responses
   .post("/token", async (c) => {
     const formData = await c.req.parseBody();
     const {
       grant_type,
       code,
       redirect_uri,
-      client_id
+      client_id,
+      client_assertion_type,
+      client_assertion
     } = formData;
+
+    // Helper for token endpoint errors
+    function tokenError(error: string, status = 400, description?: string) {
+      c.status(status as StatusCode);
+      const response: Record<string, string> = { error };
+      if (description) {
+        response.error_description = description;
+      }
+      return c.json(response);
+    }
 
     // Validate request
     if (!grant_type || grant_type !== "authorization_code" ||
         !code || !redirect_uri || !client_id) {
-      c.status(400);
-      return c.json({ error: "invalid_request" });
+      return tokenError("invalid_request", 400, "Missing required parameters");
     }
 
     // Lookup authorization request
     const authRequest = authorizationRequests.get(code as string);
     if (!authRequest) {
-      c.status(400);
-      return c.json({ error: "invalid_grant" });
+      return tokenError("invalid_grant", 400, "The authorization code is invalid or expired");
     }
 
     // Validate client_id and redirect_uri match original request
     if (authRequest.client_id !== client_id ||
         authRequest.redirect_uri !== redirect_uri) {
-      c.status(400);
-      return c.json({ error: "invalid_grant" });
+      return tokenError("invalid_grant", 400, "The client_id or redirect_uri does not match the original request");
     }
 
-    // TODO: Validate client authentication
-    // const clientAssertion = formData.client_assertion;
-    // if (authRequest.clientRegistration.requiresAssertion && !await validateClientAssertion(clientAssertion, authRequest.clientRegistration)) {
-    //   c.status(401);
-    //   return c.json({ error: "invalid_client" });
-    // }
+    // Validate client authentication if needed
+    const clientMetadata = authRequest.clientRegistration as unknown as ClientMetadata;
+    const authMethod = clientMetadata.token_endpoint_auth_method || 'client_secret_post';
+    
+    // Check if client needs authentication
+    let clientAuthenticated = false;
+    
+    if (authMethod === 'private_key_jwt' || authMethod === 'client_secret_jwt') {
+      // JWT-based authentication
+      if (client_assertion_type !== 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer' || !client_assertion) {
+        return tokenError("invalid_client", 401, "Missing or invalid client assertion");
+      }
+      
+      // Get token endpoint URL from tenant config
+      const tokenEndpointUrl = `${c.var.tenant.baseUrl}/oauth/token`;
+      
+      // Verify the JWT assertion
+      clientAuthenticated = await verifyClientAssertion(
+        client_assertion as string,
+        clientMetadata,
+        tokenEndpointUrl
+      );
+      
+      if (!clientAuthenticated) {
+        return tokenError("invalid_client", 401, "Client authentication failed: invalid JWT assertion");
+      }
+    }
+    else if (clientMetadata.client_secret) {
+      const client_secret = formData.client_secret;
+      
+      // Basic authentication in header
+      if (authMethod === 'client_secret_basic') {
+        const authHeader = c.req.header('Authorization');
+        if (!authHeader || !authHeader.startsWith('Basic ')) {
+          return tokenError("invalid_client", 401, "Client authentication failed: missing or invalid Authorization header");
+        }
+        
+        const credentials = atob(authHeader.substring(6)).split(':');
+        if (credentials.length !== 2 || 
+            credentials[0] !== client_id || 
+            credentials[1] !== clientMetadata.client_secret) {
+          return tokenError("invalid_client", 401, "Client authentication failed: invalid credentials");
+        }
+        clientAuthenticated = true;
+      } 
+      // Form-encoded client_secret in body
+      else if (authMethod === 'client_secret_post') {
+        if (!client_secret || client_secret !== clientMetadata.client_secret) {
+          return tokenError("invalid_client", 401, "Client authentication failed: invalid client_secret");
+        }
+        clientAuthenticated = true;
+      }
+    } else {
+      // Public client - no authentication needed
+      clientAuthenticated = true;
+    }
+
+    // If client authentication failed
+    if (!clientAuthenticated) {
+      return tokenError("invalid_client", 401, "Client authentication failed");
+    }
 
     // Verify request is approved and has EHR tokens
     if (!authRequest.approved || !authRequest.ehrTokenResponse) {
-      c.status(400);
-      return c.json({ error: "access_denied" });
+      return tokenError("access_denied", 400, "The authorization request was not approved");
     }
 
     // Generate access token

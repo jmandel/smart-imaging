@@ -226,6 +226,9 @@
     <div class="app-container">
         <div class="header">
             <h1>SMART on FHIR + DICOM Demo</h1>
+            <p style="margin-top: 5px; color: #666;">
+                Demonstrates <a href="https://build.fhir.org/ig/bvdh/smart-multi-auth/solution-dual-smart-launch.html" target="_blank" style="color: #007bff; text-decoration: none;">SMART Multi-Auth</a> for imaging workflow integration
+            </p>
         </div>
 
         <div class="content-grid">
@@ -268,19 +271,25 @@
         <div class="config-panel">
             <div class="source-container">
                 <h3>Configuration</h3>
-                <textarea id="configEditor">
-{
-    "servers": [
-        {
-            "clientId": "ehr_client_id",
-            "fhirBaseUrl": "https://launcher.imaging.argo.run/v/r4/sim/WzMsIjg3YTMzOWQwLThjYWUtNDE4ZS04OWM3LTg2NTFlNmFhYjNjNiIsIiIsIkFVVE8iLDAsMCwwLCIiLCIiLCIiLCIiLCIiLCIiLCIiLDAsMSwiIl0/fhir",
-            "scope": "launch/patient patient/*.read openid fhirUser"
-        }
-    ],
-    "capabilities": ["smart-imaging-access-dual-launch"]
-}
-                </textarea>
-                <button onclick="startAuth()">Start Authorization</button>
+                <p style="margin-bottom: 15px; color: #666; font-size: 14px;">
+                    This demo implements the <a href="https://build.fhir.org/ig/bvdh/smart-multi-auth" target="_blank" style="color: #007bff;">SMART Multi-Auth specification</a>,
+                    which enables coordinated authorization to EHR and imaging systems using SMART on FHIR.
+                </p>
+                <div style="margin-bottom: 10px;">
+                    <label for="presetSelector">Configuration Preset:</label>
+                    <select id="presetSelector" onchange="selectPreset(this.value)" style="padding: 5px; border-radius: 4px; border: 1px solid #ddd; margin-left: 5px;">
+                        <option value="smart">SMART Sandbox</option>
+                        <option value="epic">Epic Sandbox</option>
+                        <option value="custom" disabled>Custom Configuration</option>
+                    </select>
+                </div>
+                <div style="position: relative;">
+                    <textarea id="configEditor">
+</textarea>
+                </div>
+                <div style="display: flex; gap: 10px; margin-top: 10px;">
+                    <button onclick="startAuth()">Start Authorization</button>
+                </div>
             </div>
 
             <div class="source-container">
@@ -297,10 +306,103 @@
         cornerstoneWADOImageLoader.external.cornerstone = cornerstone;
         cornerstoneWADOImageLoader.external.dicomParser = dicomParser;
 
+        // Store the default configuration
+        const DEFAULT_CONFIG = `{
+    "servers": [
+        {
+            "clientId": "ehr_client_id",
+            "fhirBaseUrl": "https://launcher.imaging.argo.run/v/r4/sim/WzMsIjg3YTMzOWQwLThjYWUtNDE4ZS04OWM3LTg2NTFlNmFhYjNjNiIsIiIsIkFVVE8iLDAsMCwwLCIiLCIiLCIiLCIiLCIiLCIiLCIiLDAsMSwiIl0/fhir",
+            "scope": "launch/patient patient/*.read openid fhirUser"
+        }
+    ],
+    "capabilities": ["smart-imaging-access-dual-launch"]
+}`;
 
+        // Add Epic Sandbox configuration
+        const EPIC_CONFIG = `{
+    "servers": [
+        {
+            "clientId": "e34a2e30-4fd4-424f-9dc1-35d569850290",
+            "fhirBaseUrl": "https://ihe-nimbus.epic.com/FHIRProxy/api/FHIR/R4",
+            "scope": "launch/patient patient/*.read openid fhirUser"
+        }
+    ],
+    "capabilities": ["smart-imaging-access-dual-launch"]
+}`;
+
+        // Define preset configurations
+        const PRESETS = {
+            "smart": {
+                name: "SMART Sandbox",
+                config: DEFAULT_CONFIG
+            },
+            "epic": {
+                name: "Epic Sandbox",
+                config: EPIC_CONFIG
+            },
+            "custom": {
+                name: "Custom Configuration",
+                config: null
+            }
+        };
+
+        let currentPreset = "smart";
         let currentStudy = null;
         let currentImages = [];
         let currentImageIndex = 0;
+
+        // Initialize the config editor with saved or default config
+        function initializeConfigEditor() {
+            const configEditor = document.getElementById('configEditor');
+            const presetSelector = document.getElementById('presetSelector');
+            const savedConfig = localStorage.getItem('smartImageConfig');
+            const savedPreset = localStorage.getItem('smartImagePreset') || 'smart';
+            
+            // Set the current preset
+            currentPreset = savedPreset;
+            presetSelector.value = currentPreset;
+            
+            // If we have a custom config or a saved preset config, use it
+            if (savedConfig) {
+                configEditor.value = savedConfig;
+                
+                // If the saved config doesn't match any preset, it's custom
+                if (savedConfig !== PRESETS.smart.config && savedConfig !== PRESETS.epic.config) {
+                    PRESETS.custom.config = savedConfig;
+                    document.querySelector('#presetSelector option[value="custom"]').disabled = false;
+                    currentPreset = 'custom';
+                    presetSelector.value = 'custom';
+                }
+            } else {
+                // Otherwise use the default config from the selected preset
+                configEditor.value = PRESETS[currentPreset].config;
+            }
+            
+            // Add event listener to save on change and update preset selection
+            configEditor.addEventListener('input', function() {
+                const config = this.value;
+                localStorage.setItem('smartImageConfig', config);
+                
+                // Check if the current config matches any preset
+                if (config === PRESETS.smart.config) {
+                    currentPreset = 'smart';
+                } else if (config === PRESETS.epic.config) {
+                    currentPreset = 'epic';
+                } else {
+                    // If it doesn't match any preset, it's custom
+                    currentPreset = 'custom';
+                    PRESETS.custom.config = config;
+                    document.querySelector('#presetSelector option[value="custom"]').disabled = false;
+                }
+                
+                // Update the preset selector without triggering the change event
+                presetSelector.value = currentPreset;
+                localStorage.setItem('smartImagePreset', currentPreset);
+            });
+        }
+        
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', initializeConfigEditor);
 
         function resolveEndpointReference(study, bundle) {
             const endpointRef = study.endpoint?.[0]?.reference;
@@ -439,6 +541,17 @@
 
         window.toggleConfig = function() {
             document.querySelector('.config-panel').classList.toggle('hidden');
+        };
+
+        window.selectPreset = function(preset) {
+            currentPreset = preset;
+            localStorage.setItem('smartImagePreset', preset);
+            
+            const presetConfig = PRESETS[preset].config;
+            if (presetConfig) {
+                document.getElementById('configEditor').value = presetConfig;
+                localStorage.setItem('smartImageConfig', presetConfig);
+            }
         };
 
         window.startAuth = async function() {

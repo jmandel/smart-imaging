@@ -35,7 +35,18 @@ class MultiSmartLaunch {
   }
 
   static initialize(servers, capabilities) {
-    return new MultiSmartLaunch(servers, capabilities);
+    // Filter out any servers with invalid URLs
+    const validServers = servers.filter(server => {
+      try {
+        new URL(server.fhirBaseUrl);
+        return true;
+      } catch (error) {
+        console.warn(`Skipping server with invalid URL: ${server.fhirBaseUrl}`, error);
+        return false;
+      }
+    });
+    
+    return new MultiSmartLaunch(validServers, capabilities);
   }
 
   authorize() {
@@ -72,7 +83,15 @@ class MultiSmartLaunch {
 
     // Fetch SMART configuration if not already cached
     if (!this.serverConfigs[currentServer.fhirBaseUrl]) {
-      this.serverConfigs[currentServer.fhirBaseUrl] = await this.fetchSmartConfiguration(currentServer);
+      try {
+        this.serverConfigs[currentServer.fhirBaseUrl] = await this.fetchSmartConfiguration(currentServer);
+      } catch (error) {
+        console.warn(`Skipping server with invalid SMART configuration: ${currentServer.fhirBaseUrl}`, error);
+        // Skip to next server
+        this.currentServerIndex++;
+        this.startNextServerAuth();
+        return;
+      }
     }
 
     this.saveStateToSession();
@@ -173,6 +192,7 @@ class MultiSmartLaunch {
   buildAuthorizationUrl(server) {
     const config = this.serverConfigs[server.fhirBaseUrl];
     if (!config || !config.authorization_endpoint) {
+      console.warn(`Invalid SMART configuration for ${server.fhirBaseUrl}: missing authorization_endpoint`);
       throw new Error("SMART configuration not found or invalid");
     }
 
@@ -206,6 +226,7 @@ class MultiSmartLaunch {
   async exchangeCodeForToken(server, code) {
     const config = this.serverConfigs[server.fhirBaseUrl];
     if (!config || !config.token_endpoint) {
+      console.warn(`Invalid SMART configuration for ${server.fhirBaseUrl}: missing token_endpoint`);
       throw new Error("SMART configuration not found or invalid");
     }
 
@@ -216,19 +237,24 @@ class MultiSmartLaunch {
       client_id: server.clientId,
     });
 
-    const response = await fetch(config.token_endpoint, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body: params,
-    });
+    try {
+      const response = await fetch(config.token_endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: params,
+      });
 
-    if (!response.ok) {
-      throw new Error(`Token exchange failed: ${response.statusText}`);
+      if (!response.ok) {
+        throw new Error(`Token exchange failed: ${response.statusText}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error(`Error exchanging code for token at ${config.token_endpoint}:`, error);
+      throw error;
     }
-
-    return await response.json();
   }
 
   handleError(error) {
@@ -242,14 +268,15 @@ class MultiSmartLaunch {
   }
 
   async fetchSmartConfiguration(server) {
-    const wellKnownUrl = `${server.fhirBaseUrl}/.well-known/smart-configuration`;
-    const response = await fetch(wellKnownUrl);
+    try {
+      const wellKnownUrl = `${server.fhirBaseUrl}/.well-known/smart-configuration`;
+      const response = await fetch(wellKnownUrl);
 
-    if (!response.ok) {
-      throw new Error(`Failed to fetch SMART configuration: ${response.statusText}`);
-    }
+      if (!response.ok) {
+        throw new Error(`Failed to fetch SMART configuration: ${response.statusText}`);
+      }
 
-    const config = await response.json();
+      const config = await response.json();
 
     // Check for associated endpoints with the specified capabilities
     console.log("got config, lookign for", this.capabilities);
@@ -276,6 +303,10 @@ class MultiSmartLaunch {
     console.log("servers", this.servers);
 
     return config;
+    } catch (error) {
+      console.error(`Error fetching SMART configuration for ${server.fhirBaseUrl}:`, error);
+      throw error;
+    }
   }
 }
 

@@ -1,7 +1,7 @@
 // import { Router } from "./deps.ts";
 
 import { Hono, HTTPException, cors } from "./deps.ts";
-import { AppContext, HonoEnv, Identifier, IntrospectionConfig, QueryRestrictions, isIndependentSmartTenant } from "./types.ts";
+import { AppContext, HonoEnv, Identifier, QueryRestrictions, isIndependentSmartTenant } from "./types.ts";
 
 export const fhirRouter = new Hono<HonoEnv>();
 
@@ -70,7 +70,7 @@ fhirRouter.get("/.well-known/smart-configuration", async (c, next) => {
     authorization_endpoint: `${baseUrl}/oauth/authorize`,
     token_endpoint: `${baseUrl}/oauth/token`,
     token_endpoint_auth_methods_supported: ["private_key_jwt"],
-    grant_types_supported: ["authtenantAuthzConfigorization_code"],
+    grant_types_supported: ["authorization_code"],
     scopes_supported: [
       "patient/ImagingStudy.rs",
       "launch/patient",
