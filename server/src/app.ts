@@ -1,4 +1,4 @@
-import { Hono, HTTPException, jose, serveStatic, logger } from "./deps.ts";
+import { Hono, HTTPException, jose, serveStatic, logger, cors } from "./deps.ts";
 
 import * as path from "https://deno.land/std@0.179.0/path/mod.ts";
 import { baseUrl } from "./config.ts";
@@ -70,6 +70,7 @@ const ROOT_DIR_PATH = "/app/*";
 
 export const app = new Hono<HonoEnv>();
 app.use('*', logger())
+app.use('*', cors({ origin: '*', allowMethods: ['GET', 'POST', 'OPTIONS'], allowHeaders: ['Content-Type', 'Authorization'], credentials: true, maxAge: 3600 }))
 app
   .get(
     ROOT_DIR_PATH,
@@ -80,4 +81,14 @@ app
   )
   .route("/dyn/:dyn", tenantApp)
   .route("/:tenant", tenantApp)
-  .get("/", (c) => c.redirect("https://github.com/jmandel/smart-imaging#getting-started", 302));
+  .get("/", (c) => c.html(`<!doctype html>
+<html><head><title>SMART Imaging demo</title></head>
+<body>
+<h1>SMART Imaging demo on exe.dev</h1>
+<ul>
+  <li><a href="/app/viewer/">SMART Imaging web app</a></li>
+  <li><a href="/open/fhir/ImagingStudy?patient=">Open FHIR ImagingStudy endpoint</a></li>
+  <li><a href="/open/fhir/metadata">FHIR metadata</a></li>
+</ul>
+<p>Orthanc is available internally on localhost:8042 and externally through the imaging API WADO URLs.</p>
+</body></html>`));

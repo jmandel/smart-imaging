@@ -1,5 +1,5 @@
 import type { DicomProvider } from "./dicom_provider.ts";
-import { Context } from "https://deno.land/x/hono@v3.7.3/mod.ts";
+import type { Context } from "./deps.ts";
 import type { Authorizer } from "./introspection.ts";
 
 export type Justification = string;

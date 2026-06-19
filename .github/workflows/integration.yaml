@@ -1,10 +1,14 @@
 name: Run integration tests from app -> proxy -> dicom server
-on: [push, pull_request]
+on:
+  push:
+    branches:
+    - main
+  pull_request:
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@master
+    - uses: actions/checkout@v4
     - name: start minikube
       id: minikube
       uses: medyagh/setup-minikube@master
@@ -20,32 +24,28 @@ jobs:
         mkcert -key-file key.pem  -cert-file cert.pem "*.imaging-local.argo.run" "imaging-local.argo.run"
         echo $(minikube ip)    imaging-local.argo.run | sudo tee -a /etc/hosts
         echo $(minikube ip)    launcher.imaging-local.argo.run | sudo tee -a /etc/hosts
-        kubectl -n kube-system create secret tls mkcert \
-            --key key.pem \
-            --cert cert.pem
-        echo "kube-system/mkcert" | minikube addons configure ingress
         minikube addons enable ingress
     - name: Build Images
       run: |
         export SHELL=/bin/bash
         eval $(minikube -p minikube docker-env)
         docker pull ghcr.io/jmandel/smart-launcher-v2:latest
-        cd viewer
-        npm ci
-        npm run build --  --base=/app
-        mv dist ../server/public
-        cd ../server
-        docker build -t  ghcr.io/jmandel/smart-imaging-proxy:latest .
+        docker build -f server/Dockerfile -t ghcr.io/jmandel/smart-imaging-proxy:latest .
         echo -n "verifying images:"
         docker images
     - name: Launch Minikube Stack
       run: |
         export SHELL=/bin/bash
-        cd server
-        kubectl apply -f k8s/base.yml -f k8s/minikube.yml
-    - uses: actions/setup-node@v3
+        kubectl apply -f server/k8s/base.yml
+        kubectl -n smart-imaging-access create secret tls imaging-local-tls \
+          --key key.pem \
+          --cert cert.pem \
+          --dry-run=client \
+          -o yaml | kubectl apply -f -
+        kubectl apply -f server/k8s/minikube.yml
+    - uses: actions/setup-node@v4
       with:
-        node-version: 16
+        node-version: 24
     - name: Install playwright
       working-directory: ./integration
       run: |
@@ -96,4 +96,3 @@ jobs:
 
         echo "Loop completed successfully. Proceeding with playwright tests..."
         npx playwright test
-

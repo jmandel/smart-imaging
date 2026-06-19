@@ -1,6 +1,6 @@
 export * as jose from "https://deno.land/x/jose@v4.13.1/index.ts";
 export * as fhirpath from "npm:fhirpath";
-export { Hono } from "https://deno.land/x/hono@v4.3.11/mod.ts";
+export { Hono, type Context } from "https://deno.land/x/hono@v4.3.11/mod.ts";
 export {cors} from "https://deno.land/x/hono@v4.3.11/middleware/cors/index.ts";
 
 export { getCookie, setCookie } from "https://deno.land/x/hono@v4.3.11/helper.ts";

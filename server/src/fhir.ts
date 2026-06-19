@@ -59,18 +59,23 @@ fhirRouter.use('*', async (ctx, next) => {
 
 
 
-fhirRouter.get("/.well-known/smart-configuration", async (c, next) => {
-  if (!isIndependentSmartTenant(c.var.tenant)) {
-    return await next();
-  }
-
+fhirRouter.get("/.well-known/smart-configuration", async (c) => {
   const baseUrl = c.var.tenant.baseUrl;
+
+  if (!isIndependentSmartTenant(c.var.tenant)) {
+    return c.json({
+      capabilities: ["smart-imaging-access"],
+      associated_endpoints: [
+        { url: `${baseUrl}/fhir`, capabilities: ["smart-imaging-access"] },
+      ],
+    });
+  }
   
   return c.json({
     authorization_endpoint: `${baseUrl}/oauth/authorize`,
     token_endpoint: `${baseUrl}/oauth/token`,
     token_endpoint_auth_methods_supported: ["private_key_jwt"],
-    grant_types_supported: ["authtenantAuthzConfigorization_code"],
+    grant_types_supported: ["authorization_code"],
     scopes_supported: [
       "patient/ImagingStudy.rs",
       "launch/patient",
@@ -81,12 +86,15 @@ fhirRouter.get("/.well-known/smart-configuration", async (c, next) => {
     capabilities: [
       "launch-standalone",
       "client-public",
-      "client-confidential-asymmetric",  // Changed from symmetric to asymmetric
+      "client-confidential-asymmetric",
       "permission-patient",
       "permission-v2",
       "context-standalone-patient",
       "smart-imaging-access-dual-launch"
-    ]
+    ],
+    associated_endpoints: [
+      { url: `${baseUrl}/fhir`, capabilities: ["smart-imaging-access-dual-launch"] },
+    ],
   });
 });
 

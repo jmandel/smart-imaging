@@ -1,0 +1,38 @@
+# Dependencies and generated frontend output
+node_modules/
+viewer/node_modules/
+viewer/dist/
+playwright/node_modules/
+playwright/playwright-report/
+
+# Generated server static assets; the Dockerfile builds these from viewer/
+server/public/
+
+# Local Kubernetes/minikube config and certificates
+argonaut-kubeconfig.yaml
+*.pem
+
+# Local clones and temporary work areas
+smart-launcher-v2/
+temp/
+tmp/
+
+# Downloaded sample archives; keep process.sh and sources.txt tracked
+server/examples/pcir.org/*.tar.bz2
+server/examples/pcir.org/*.tgz
+
+# Local scratch files produced during API/DICOM debugging
+ex.bin
+md.json
+test
+server/f.json
+server/is
+server/ism
+server/o
+server/s
+server/sj
+server/st
+server/test
+
+# Editor-local metadata
+server/.vscode/

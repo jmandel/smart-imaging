@@ -29,7 +29,7 @@ mindmap
 
 Try the SMART Imaging Demo Stack live:
 
-* https://imaging-app.argo.run is a Demo SMART Imaging App that can connect to any SMART on FHIR Clinical + Imaging endpoints.
+* https://imaging.argo.run/app/viewer/ is the Demo SMART Imaging App served from the stack. The same React app can also be deployed as a static site, with its server list edited in the browser Settings panel.
 
 * https://imaging.argo.run/smart-sandbox/fhir/ImagingStudy is a SMART on FHIR FHIR Imaging endpoint. Note that `smart-sandbox` can be replaced with other configuration keys to change server behavior. See <a href="#config">config section</a> below.
 
@@ -50,7 +50,7 @@ The SMART Imaging demo stack includes two main components:
 
 See [`./viewer`](./viewer).
 
-This app connects a SMART on FHIR clinical data server (e.g., an EHR sandbox) as well as an imaging erver (e.g., our Reference Imaging Server). After authorization, it retrieves data from both. 
+This React app connects a SMART on FHIR clinical data server (e.g., an EHR sandbox) as well as an imaging server (e.g., our Reference Imaging Server). After authorization, it retrieves clinical data from the EHR and imaging studies through the configured imaging API. The app can load a mounted runtime config from `config/config.json`, fall back to its bundled `servers.json`, and lets users edit settings in the browser.
 
 
 <a id="config"></a>
@@ -63,7 +63,7 @@ See [`./server`](./server).
 The Reference Imaging Server allows for testing SMART Imaging with many different servers. A complete configuration will provide two key components:
 
 * Authorization server. Typically this will be an EHR's existing SMART on FHIR server (e.g., an EHR's sandbox authz server).
-* Image source. Typically this will be a DICOM Web server that supports some kind of private authentication, but it could be something simpler like a folder full of test images in a demo environmnet. Anything that can recive a Patient and output a set of DICOM metadata + images.
+* Image source. Typically this will be a DICOM Web server that supports some kind of private authentication, but it could be something simpler like a folder full of test images in a demo environment. Anything that can receive a Patient and output a set of DICOM metadata + images.
 
 ### Query Flow Through the Reference Imaging Server
 
@@ -109,7 +109,7 @@ flowchart TB
 Pre-specified configurations are controlled by files in [`./server/config`](./server/config). They can change the behavior of the server to help you test out specific scenarios. For example:
 
   * `/smart-sandbox` configuration is backed by [`./server/config/smart-sandbox.json`](./server/config/smart-sandbox.json), which means that it will introspect access tokens against SMART's sandbox authorization server, so clients must use https://launch.smarthealthit.org to get an access token before making imaging requests.
-  * `/open` configuration is backed by [`./server/config/open.json`](./server/config/open.json), which means that it will ignore access tokens entirely an just use a hard-coded introspection response. Similarly, it will ignore patient matching and always return the same set of images. These behaviors can be very handy for debugging.
+  * `/open` configuration is backed by [`./server/config/open.json`](./server/config/open.json), which means that it will ignore access tokens entirely and just use a hard-coded introspection response. Similarly, it will ignore patient matching and always return the same set of images. These behaviors can be very handy for debugging.
   * For other keys, see [`./server/config`](./server/config)
 
 ### Dynamic Configuration (`https://imaging.argo.run/dyn/:encoded/fhir`) 
@@ -120,7 +120,6 @@ Dynamic configurations are useful when you want to get started testing SMART Ima
 
 You can easily create your own dynamically configured endpoint using
 
-* Editor tool at http://imaging-app.argo.run/config, or
 * Code like the snippet below (runnable in [Deno REPL](https://deno.land/manual/getting_started/installation))
 
 ```ts
@@ -156,7 +155,7 @@ This gives you an `encoded` value.
 
 * **Deno**: A secure runtime for JavaScript and TypeScript, built with V8, Rust, and Tokio. Learn more at the [Deno website](https://deno.land/)
 
-* **Svelte**: A modern, lightweight, and component-based JavaScript framework for building user interfaces. Explore more at the [Svelte website](https://svelte.dev/)
+* **React + Vite**: The sample viewer is a React app built with Vite and served either as static files or from the reference stack at `/app/viewer/`.
 
 * **Minikube**: A tool that runs a single-node Kubernetes cluster locally, making it easy to learn and develop for Kubernetes. Check out the [Minikube GitHub repository](https://github.com/kubernetes/minikube) for more details.
 
@@ -187,42 +186,77 @@ If you have questions, need assistance, or want to provide feedback on the SMART
   
 # Development Setup with minikube
 
-This section provides a step-by-step guide for setting up the SMART Imaging project on your local machine using Minikube. Following these instructions will help you create a local development environment, which is essential for testing and making changes to the project before deploying it to a production environment.
+This section sets up a local Kubernetes stack with the React viewer, reference imaging API, Orthanc, and SMART launcher. It was last verified with `minikube v1.38.1`, Kubernetes `v1.35.1`, and `mkcert 1.4.x`.
 
-1. Install `minikube` locally (tested with version 1.29)
-2. Install `mkcert` locally (tested with 1.4.4)
+Install these tools first:
 
-```
+* `minikube`
+* `kubectl`
+* `docker`
+* `mkcert`
+* Node.js and `npm` if you want to run the viewer outside Docker
+
+Start minikube and make sure `kubectl` is pointed at it:
+
+```sh
 minikube start
-mkcert -install \
+minikube addons enable ingress
+kubectl config use-context minikube
+```
+
+If you are reusing a very old minikube profile and Kubernetes certificate errors prevent startup, recreate the local cluster with `minikube delete` and then run `minikube start` again. This deletes only the local minikube cluster.
+
+Create a local TLS certificate for the minikube host names:
+
+```sh
+mkcert -install
+mkcert \
   -key-file imaging-local-key.pem \
   -cert-file imaging-local-cert.pem \
   "*.imaging-local.argo.run" \
   "imaging-local.argo.run"
-kubectl -n kube-system create secret tls mkcert \
-    --key imaging-local-key.pem \
-    --cert imaging-local-cert.pem
-echo "kube-system/mkcert" | minikube addons configure ingress
-minikube addons enable ingress
-echo $(minikube ip)    imaging-local.argo.run | sudo tee -a /etc/hosts
-echo $(minikube ip)    launcher.imaging-local.argo.run | sudo tee -a /etc/hosts
-eval $(minikube -p minikube docker-env)
-
-git clone https://github.com/smart-on-fhir/smart-launcher-v2
-cd smart-launcher-v2
-docker build -t ghcr.io/jmandel/smart-launcher-v2:latest .
-cd ..
-
-git clone https://github.com/jmandel/smart-imaging-api
-cd smart-imaging-api/server
-docker build -t ghcr.io/jmandel/smart-imaging-proxy:latest .
-
-kubectl apply -f k8s/base.yml -f k8s/minikube.yml
 ```
+
+Point the local host names at the minikube IP:
+
+```sh
+minikube ip
+```
+
+Add these names to `/etc/hosts`, replacing `192.168.49.2` with the IP from `minikube ip`:
+
+```text
+192.168.49.2 imaging-local.argo.run launcher.imaging-local.argo.run
+```
+
+Build the reference server image inside minikube's Docker daemon. The Dockerfile builds the React viewer and copies the generated `viewer/dist` output into the final server image, so generated `server/public` files should not be committed.
+
+```sh
+eval "$(minikube -p minikube docker-env)"
+docker build -f server/Dockerfile -t ghcr.io/jmandel/smart-imaging-proxy:latest .
+```
+
+Deploy the stack:
+
+```sh
+kubectl apply -f server/k8s/base.yml
+kubectl -n smart-imaging-access create secret tls imaging-local-tls \
+  --cert=imaging-local-cert.pem \
+  --key=imaging-local-key.pem \
+  --dry-run=client \
+  -o yaml | kubectl apply -f -
+kubectl apply -f server/k8s/minikube.yml
+kubectl -n smart-imaging-access rollout status deployment/orthanc
+kubectl -n smart-imaging-access rollout status deployment/launcher
+kubectl -n smart-imaging-access rollout status deployment/reference
+```
+
+The minikube ingress uses an `imaging-local-tls` secret in the `smart-imaging-access` namespace. Older instructions configured an ingress addon default certificate in `kube-system`; the current manifests keep the TLS wiring explicit in the app namespace.
 
 
 ## Access Services
 
+* Open https://imaging-local.argo.run/app/viewer/ for the SMART Imaging viewer
 * Open https://launcher.imaging-local.argo.run for SMART Launcher
 * Open https://imaging-local.argo.run/orthanc (argonaut/argonaut) for Orthanc instance underlying the demo
 * API at https://imaging-local.argo.run/open/fhir/ImagingStudy?patient= to query for imaging data
@@ -235,16 +269,37 @@ This `curl` command queries the SMART Imaging API for ImagingStudy resources ass
 curl https://imaging-local.argo.run/open/fhir/ImagingStudy?patient=Patient/87a339d0-8cae-418e-89c7-8651e6aab3c6
 ```
 
-## After building new images
+## Smoke test
 
+After the pods are ready, run:
+
+```sh
+deploy/smoke-test.sh https://imaging-local.argo.run https://imaging-local.argo.run/orthanc
 ```
-kubectl  -n smart-imaging-access rollout restart deployment reference
+
+## After viewer or server changes
+
+For viewer or server changes, rebuild the server image in minikube and restart the reference deployment. The image build will rebuild the viewer.
+
+```sh
+eval "$(minikube -p minikube docker-env)"
+docker build -f server/Dockerfile -t ghcr.io/jmandel/smart-imaging-proxy:latest .
+kubectl -n smart-imaging-access rollout restart deployment/reference
+kubectl -n smart-imaging-access rollout status deployment/reference
 ```
 
 # Deploying to hosted demo
 
-Deploying to a hosted demo into a public kubernetes cluster allows you to showcase the project to a wider audience, test its functionality in a production-like setting, and gather valuable user feedback for future improvements.
+Deploying to a hosted demo into a public Kubernetes cluster uses the same base manifest plus a hosted overlay. The hosted cluster must be the active `kubectl` context, and the image named in the manifest must already be pushed to a registry the cluster can pull from.
 
+```sh
+docker build -f server/Dockerfile -t ghcr.io/jmandel/smart-imaging-proxy:latest .
+docker push ghcr.io/jmandel/smart-imaging-proxy:latest
+kubectl apply -f server/k8s/base.yml -f server/k8s/server.yml
 ```
-kubectl apply -f k8s/base.yml k8s/server.yml
-```
+
+## Automated main-branch deploy
+
+Pushes to `main` that change the server, viewer, Dockerfile context, or server workflow build and push `ghcr.io/jmandel/smart-imaging-proxy:sha-<commit>` and `latest`. The workflow then updates only `deployment/reference` in the `smart-imaging-access` namespace to use the immutable SHA tag for the `proxy` and `sample-loader` containers.
+
+The deploy credential is a namespace-scoped Kubernetes service account defined in [`server/k8s/github-deployer.yml`](server/k8s/github-deployer.yml). Its base64-encoded kubeconfig is stored as the repository Actions secret `SMART_IMAGING_DOKS_KUBECONFIG_B64`. To rotate the credential, delete and recreate the `github-deployer-token` secret in the cluster, regenerate the service account kubeconfig, and update the GitHub secret.
