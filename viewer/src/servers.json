@@ -4,20 +4,6 @@
       "label": "SMART Sandbox + Imaging Server",
       "clientId": "imaging-app",
       "iss": "https://launcher.imaging.argo.run/v/r4/sim/WzIsIjg3YTMzOWQwLThjYWUtNDE4ZS04OWM3LTg2NTFlNmFhYjNjNiIsIiIsIkFVVE8iLDAsMCwwLCIiLCIiLCIiLCIiLCIiLCIiLCIiLDAsMV0/fhir",
-      "associatedEndpointDefaults": [{
-        "url":  "https://imaging.argo.run/smart-sandbox/fhir",
-        "capabilities": ["smart-imaging-access"]
-      }],
-      "scope": "launch/patient patient/*.rs"
-    },
-    {
-      "label": "SMART Sandbox + Open Imaging Server",
-      "clientId": "imaging-app",
-      "iss": "https://launcher.imaging.argo.run/v/r4/sim/WzIsIjg3YTMzOWQwLThjYWUtNDE4ZS04OWM3LTg2NTFlNmFhYjNjNiIsIiIsIkFVVE8iLDAsMCwwLCIiLCIiLCIiLCIiLCIiLCIiLCIiLDAsMV0/fhir",
-      "associatedEndpointDefaults": [{
-        "url":  "https://imaging.argo.run/open/fhir",
-        "capabilities": ["smart-imaging-access"]
-      }],
       "scope": "launch/patient patient/*.rs"
     },
     {
@@ -51,16 +37,6 @@
         "capabilities": ["smart-imaging-access"]
       }],
       "scope": "launch/patient patient/Patient.read patient/AllergyIntolerance.read patient/Condition.read patient/DiagnosticReport.read patient/MedicationRequest.read openid fhirUser"
-    },
-    {
-      "label": "(Local) SMART Sandbox + Unauthenticated Imaging Server",
-      "clientId": "imaging-app",
-      "iss": "https://launcher.imaging-local.argo.run/v/r4/sim/WzIsIjg3YTMzOWQwLThjYWUtNDE4ZS04OWM3LTg2NTFlNmFhYjNjNiIsIiIsIkFVVE8iLDAsMCwwLCIiLCIiLCIiLCIiLCIiLCIiLCIiLDAsMV0/fhir",
-      "associatedEndpointDefaults": [{
-        "url": "https://imaging-local.argo.run/open/fhir",
-        "capabilities": ["smart-imaging-access"]
-      }],
-      "scope": "launch/patient patient/*.rs"
     },
     {
       "label": "(Local) SMART Sandbox + Imaging Server",

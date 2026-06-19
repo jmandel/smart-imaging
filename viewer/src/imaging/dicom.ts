@@ -3,6 +3,7 @@ import * as cornerstone from 'cornerstone-core';
 import * as cornerstoneWADOImageLoader from 'cornerstone-wado-image-loader';
 import { parseMultipart } from '../multipart';
 import { appAssetUrl } from '../appBase';
+import { protocolBodyFromText, protocolHeaders, protocolUrlParams, type ProtocolHttpExchange } from '../protocol/protocolStore';
 
 cornerstoneWADOImageLoader.external.dicomParser = dicomParser;
 cornerstoneWADOImageLoader.external.cornerstone = cornerstone;
@@ -60,4 +61,40 @@ export async function fetchDicomStudy(address: string, uid: string, authorizatio
   if (!studyMultipart.ok) throw new Error(`WADO failed ${studyMultipart.status}`);
   const parsed = await parseMultipart(studyMultipart);
   return parseStudyMetadata(parsed.parts.map((p) => p.body));
+}
+
+export async function fetchDicomStudyWithTrace(address: string, uid: string, authorization: string) {
+  const url = `${address}/studies/${uid}`;
+  const requestHeaders = { accept: 'multipart/related; type=application/dicom; transfer-syntax=*', authorization };
+  const exchange: ProtocolHttpExchange = {
+    title: 'DICOMweb WADO-RS study retrieval',
+    request: {
+      method: 'GET',
+      url,
+      params: protocolUrlParams(url),
+      headers: requestHeaders,
+    },
+  };
+  const studyMultipart = await fetch(url, { headers: requestHeaders });
+  exchange.response = {
+    status: studyMultipart.status,
+    statusText: studyMultipart.statusText,
+    headers: protocolHeaders(studyMultipart.headers),
+  };
+  if (!studyMultipart.ok) {
+    exchange.response.body = protocolBodyFromText(await studyMultipart.text(), studyMultipart.headers.get('content-type') || undefined, 8000);
+    const error = new Error(`WADO failed ${studyMultipart.status}`) as Error & { exchange?: ProtocolHttpExchange };
+    error.exchange = exchange;
+    throw error;
+  }
+  const parsed = await parseMultipart(studyMultipart);
+  const bytes = parsed.parts.reduce((sum, part) => sum + part.body.byteLength, 0);
+  exchange.response.body = {
+    contentType: parsed.headers.get('content-type') || 'multipart/related',
+    text: `Multipart response with ${parsed.parts.length} DICOM instance part(s).\nBinary DICOM payloads are not expanded in this trace.`,
+    truncated: true,
+    originalBytes: bytes,
+    note: 'Use the request URL and authorization header above to reproduce the WADO-RS retrieval.',
+  };
+  return { instances: parseStudyMetadata(parsed.parts.map((p) => p.body)), exchange };
 }

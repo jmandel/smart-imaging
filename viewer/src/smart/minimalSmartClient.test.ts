@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { MinimalSmartClient, associatedEndpointForCapability } from './minimalSmartClient';
+import { MinimalSmartClient, associatedEndpointForCapability, associatedEndpointSelectionForCapability } from './minimalSmartClient';
 import type { StoredSession } from './minimalSmartClient';
 
 const defaults = [
@@ -8,19 +8,21 @@ const defaults = [
 
 describe('associatedEndpointForCapability', () => {
   it('uses a published endpoint before the configured default', () => {
-    const endpoint = associatedEndpointForCapability(
+    const selection = associatedEndpointSelectionForCapability(
       'smart-imaging-access',
       [{ url: 'https://published.example/fhir', capabilities: ['smart-imaging-access'] }],
       defaults,
     );
 
-    expect(endpoint?.url).toBe('https://published.example/fhir');
+    expect(selection.endpoint?.url).toBe('https://published.example/fhir');
+    expect(selection.source).toBe('published');
   });
 
   it('falls back to the configured default when no endpoints are published', () => {
-    const endpoint = associatedEndpointForCapability('smart-imaging-access', undefined, defaults);
+    const selection = associatedEndpointSelectionForCapability('smart-imaging-access', undefined, defaults);
 
-    expect(endpoint?.url).toBe('https://configured.example/fhir');
+    expect(selection.endpoint?.url).toBe('https://configured.example/fhir');
+    expect(selection.source).toBe('configured-default');
   });
 
   it('falls back to the configured default when discovery publishes an empty endpoint list', () => {
@@ -48,7 +50,10 @@ describe('MinimalSmartClient.forCapability', () => {
   it('routes capability FHIR requests through the published endpoint', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
       ok: true,
-      json: async () => ({ resourceType: 'Bundle' }),
+      status: 200,
+      statusText: 'OK',
+      headers: new Headers({ 'content-type': 'application/fhir+json' }),
+      text: async () => JSON.stringify({ resourceType: 'Bundle' }),
     } as Response);
     const session: StoredSession = {
       iss: 'https://ehr.example/fhir',

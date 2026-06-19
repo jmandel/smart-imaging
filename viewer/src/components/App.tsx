@@ -5,6 +5,7 @@ import { useClinicalStore } from '../clinical/clinicalStore';
 import { useImagingStore } from '../imaging/imagingStore';
 import { initCornerstone } from '../imaging/dicom';
 import { DicomViewport } from './DicomViewport';
+import { ProtocolButton, ProtocolDrawer, ProtocolPill } from './ProtocolDrawer';
 import { SettingsModal } from './SettingsModal';
 
 const clinicalResourceLabels: Record<string, string> = {
@@ -58,17 +59,22 @@ export function App() {
     <div className="menu-bar container">
       <h1 className="logo">SMART<span className="logo-image-mark" aria-hidden="true" />Demo</h1>
       <nav className="nav-links">
+        <ProtocolButton />
         <button className="settings-trigger" onClick={() => setSettingsOpen((open) => !open)}>
           <span>Settings</span><span className="settings-icon" aria-hidden="true" />
         </button>
       </nav>
     </div>
     <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+    <ProtocolDrawer />
     <main className="container app-container">
       <div className="app-grid">
         <aside className="side-rail">
           <section className="content-box panel-fixed launcher-panel">
-            <h2>Connection</h2>
+            <div className="panel-heading">
+              <h2>Connection</h2>
+              <ProtocolPill stepId="config" label="1-4" statusStepIds={['config', 'discovery', 'authorize', 'token']} />
+            </div>
             {!client ? <>
               <select className="server-select" disabled={!settingsLoaded} value={selectedServerIndex} onChange={e => setSelectedServerIndex(parseInt(e.target.value))}>
                 {clientConfig.map((server, i) => <option key={server.label} value={i}>{server.label}</option>)}
@@ -77,12 +83,15 @@ export function App() {
               <div className="status-line error">{settingsError || smartError || (!settingsLoaded ? 'Loading settings...' : '\u00a0')}</div>
             </> : <>
               <p className="connected-state">Connected</p>
-              <button className="primary-action" onClick={disconnect}>Disconnect</button>
+              <button className="primary-action secondary-action" onClick={disconnect}>Disconnect</button>
             </>}
           </section>
 
           <section className="content-box panel-fixed clinical-panel">
-            <h2>Clinical Data</h2>
+            <div className="panel-heading">
+              <h2>Clinical Data</h2>
+              <ProtocolPill stepId="clinical" label="5" />
+            </div>
             {!client ? <div className="empty-panel">Connect to load patient context.</div> : clinical.details ? <>
               <dl className="data-list">
                 <div><dt>Patient</dt><dd>{clinical.details.name || '\u00a0'}</dd></div>
@@ -100,8 +109,11 @@ export function App() {
 
           <section className="content-box study-sidebar panel-fixed">
             <div className="panel-heading">
-              <h2>Imaging Studies</h2>
-              {imaging.loadedStudy && <button className="text-action" onClick={imaging.clearStudy}><span>Back</span><span className="inline-key">Esc</span></button>}
+              <h2>Imaging</h2>
+              <div className="panel-heading-actions">
+                {imaging.loadedStudy && <button className="text-action" onClick={imaging.clearStudy}><span>Back</span><span className="inline-key">Esc</span></button>}
+                <ProtocolPill stepId="endpoint" label="6-7" statusStepIds={['endpoint', 'imaging']} />
+              </div>
             </div>
             {!client ? <div className="empty-panel">Connect to load imaging studies.</div> : !imaging.loadedStudy ? <>
               <div className={`status-line ${imaging.error ? 'error' : ''}`}>{statusText}</div>
@@ -123,6 +135,10 @@ export function App() {
         </aside>
 
         <section className="content-box viewer-panel">
+          <div className="viewer-panel-heading">
+            <h2>Image Viewer</h2>
+            <ProtocolPill stepId="dicom" label="8" />
+          </div>
           {imaging.selectedInstance && selectedSeries ? <>
             <div className="slice-controls">
               <button className="slice-button" onClick={() => imaging.nextInstance(-1)} disabled={selectedInstanceIndex <= 0}><span>Prev</span><span className="inline-key">&larr;</span></button>
@@ -131,7 +147,7 @@ export function App() {
               <span className="slice-count">{selectedInstanceIndex + 1} / {selectedSeries.instances.length}</span>
             </div>
             <DicomViewport imageId={imaging.selectedInstance} />
-          </> : <div className="empty-viewer">Connect and choose an imaging study.</div>}
+          </> : <div className="empty-viewer">{client ? 'Choose an imaging study.' : 'Connect and choose an imaging study.'}</div>}
         </section>
       </div>
       <footer className="content-box app-footer">SMART Imaging Access.</footer>
