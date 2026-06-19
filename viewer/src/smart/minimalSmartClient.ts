@@ -1,9 +1,9 @@
 import { create } from 'zustand';
 import type { AssociatedEndpoint, ClientConfig } from '../settings/settingsStore';
 
-type SmartConfiguration = { authorization_endpoint: string; token_endpoint: string };
+type SmartConfiguration = { authorization_endpoint: string; token_endpoint: string; associated_endpoints?: unknown };
 type TokenResponse = { access_token?: string; token_type?: string; patient?: string; id_token?: string; scope?: string; expires_in?: number; [key: string]: unknown };
-type StoredSession = { iss: string; patient?: string; tokenResponse: TokenResponse; config: ClientConfig };
+export type StoredSession = { iss: string; patient?: string; tokenResponse: TokenResponse; config: ClientConfig; associatedEndpoints?: AssociatedEndpoint[] };
 const PENDING_KEY = 'smart-imaging.viewer.pendingLaunch';
 const SESSION_KEY = 'smart-imaging.viewer.session';
 
@@ -13,11 +13,26 @@ async function discover(iss: string): Promise<SmartConfiguration> { const wellKn
 function cleanUrlAfterCallback() { const url = new URL(window.location.href); ['code','state','session_state'].forEach(k => url.searchParams.delete(k)); window.history.replaceState({}, document.title, url.toString()); }
 function appendPatientParam(path: string, patient?: string) { if (!patient) return path; const url = new URL(path, 'http://placeholder.local/'); const resourceType = url.pathname.split('/').filter(Boolean)[0] || ''; if (['Patient','metadata','.well-known'].includes(resourceType)) return path; if (!url.searchParams.has('patient') && !url.searchParams.has('subject')) url.searchParams.set('patient', `Patient/${patient}`); return `${url.pathname.replace(/^\//, '')}${url.search}`; }
 async function fhirJson(baseUrl: string, token: string | undefined, path: string) { const response = await fetch(`${baseUrl.replace(/\/$/, '')}/${path.replace(/^\//, '')}`, { headers: { accept: 'application/fhir+json, application/json', ...(token ? { authorization: `Bearer ${token}` } : {}) } }); if (!response.ok) throw new Error(`FHIR request failed ${response.status}: ${baseUrl}/${path}`); return response.json(); }
+function normalizeAssociatedEndpoints(value: unknown): AssociatedEndpoint[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const endpoints = value.flatMap((endpoint) => {
+    if (!endpoint || typeof endpoint !== 'object') return [];
+    const record = endpoint as Record<string, unknown>;
+    if (typeof record.url !== 'string' || !Array.isArray(record.capabilities)) return [];
+    const capabilities = record.capabilities.filter((capability): capability is string => typeof capability === 'string');
+    return capabilities.length ? [{ url: record.url, capabilities }] : [];
+  });
+  return endpoints.length ? endpoints : undefined;
+}
+export function associatedEndpointForCapability(capability: string, publishedEndpoints?: AssociatedEndpoint[], defaultEndpoints?: AssociatedEndpoint[]) {
+  const candidates = publishedEndpoints?.length ? publishedEndpoints : defaultEndpoints;
+  return candidates?.find((endpoint) => endpoint.capabilities?.includes(capability));
+}
 
 export class MinimalSmartClient {
   constructor(private session: StoredSession, private baseUrl = session.iss) {}
   get patient() { return { read: async () => { if (!this.session.patient) throw new Error('No patient in SMART token response'); return fhirJson(this.baseUrl, this.session.tokenResponse.access_token, `Patient/${this.session.patient}`); }, request: async (path: string) => fhirJson(this.baseUrl, this.session.tokenResponse.access_token, appendPatientParam(path, this.session.patient)) }; }
-  async forCapability(capability: string) { const endpoint = this.session.config.associatedEndpointDefaults?.find((e: AssociatedEndpoint) => e.capabilities?.includes(capability)); if (!endpoint) throw new Error(`No associated endpoint found for ${capability}`); return new MinimalSmartClient(this.session, endpoint.url); }
+  async forCapability(capability: string) { const endpoint = associatedEndpointForCapability(capability, this.session.associatedEndpoints, this.session.config.associatedEndpointDefaults); if (!endpoint) throw new Error(`No associated endpoint found for ${capability}`); return new MinimalSmartClient(this.session, endpoint.url); }
   getAuthorizationHeader() { return this.session.tokenResponse.access_token ? `Bearer ${this.session.tokenResponse.access_token}` : ''; }
 }
 
@@ -40,7 +55,7 @@ async function ready(): Promise<MinimalSmartClient | null> {
   const tokenResponse = await fetch(pending.smartConfig.token_endpoint, { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded', accept: 'application/json' }, body });
   if (!tokenResponse.ok) throw new Error(`SMART token exchange failed ${tokenResponse.status}: ${await tokenResponse.text()}`);
   const token = await tokenResponse.json() as TokenResponse;
-  const session: StoredSession = { iss: pending.config.iss, patient: typeof token.patient === 'string' ? token.patient : undefined, tokenResponse: token, config: pending.config };
+  const session: StoredSession = { iss: pending.config.iss, patient: typeof token.patient === 'string' ? token.patient : undefined, tokenResponse: token, config: pending.config, associatedEndpoints: normalizeAssociatedEndpoints(pending.smartConfig.associated_endpoints) };
   sessionStorage.setItem(SESSION_KEY, JSON.stringify(session)); sessionStorage.removeItem(PENDING_KEY); cleanUrlAfterCallback(); return new MinimalSmartClient(session);
 }
 
