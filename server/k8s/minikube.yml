@@ -8,12 +8,16 @@ metadata:
     nginx.ingress.kubernetes.io/use-regex: "true"
     nginx.ingress.kubernetes.io/rewrite-target: /$2
 spec:
+  tls:
+  - hosts:
+    - launcher.imaging-local.argo.run
+    secretName: imaging-local-tls
   rules:
     - host: launcher.imaging-local.argo.run
       http:
         paths:
           - path: "/($)?(.*)"
-            pathType: Prefix
+            pathType: ImplementationSpecific
             backend:
               service:
                 name: launcher
@@ -31,19 +35,23 @@ metadata:
     nginx.ingress.kubernetes.io/use-regex: "true"
     nginx.ingress.kubernetes.io/rewrite-target: /$2
 spec:
+  tls:
+  - hosts:
+    - imaging-local.argo.run
+    secretName: imaging-local-tls
   rules:
     - host: imaging-local.argo.run
       http:
         paths:
           - path: "/orthanc(/|$)?(.*)"
-            pathType: Prefix
+            pathType: ImplementationSpecific
             backend:
               service:
                 name: orthanc
                 port:
                   number: 8042
           - path: "/($)?(.*)"
-            pathType: Prefix
+            pathType: ImplementationSpecific
             backend:
               service:
                 name: reference
@@ -60,3 +68,40 @@ data:
   LOCAL_STACK_CONFIG: --unsafely-ignore-certificate-errors
   LAUNCHER_ASSOCIATED_ENDPOINTS: '[{"url": "https://imaging-local.argo.run/smart-sandbox-local/fhir", "capabilities": ["smart-imaging-access"]},{"url": "https://imaging-local.argo.run/smart-sandbox-local-independent/fhir", "capabilities": ["smart-imaging-access-dual-launch"]}]'
   PATH_KEY: local-testing-fake-secret
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: viewer-config
+  namespace: smart-imaging-access
+data:
+  config.json: |
+    {
+      "clientConfig": [
+        {
+          "label": "(Local) SMART Sandbox + Imaging Server",
+          "clientId": "imaging-app",
+          "iss": "https://launcher.imaging-local.argo.run/v/r4/sim/WzIsIjg3YTMzOWQwLThjYWUtNDE4ZS04OWM3LTg2NTFlNmFhYjNjNiIsIiIsIkFVVE8iLDAsMCwwLCIiLCIiLCIiLCIiLCIiLCIiLCIiLDAsMV0/fhir",
+          "associatedEndpointDefaults": [
+            {
+              "url": "https://imaging-local.argo.run/smart-sandbox-local/fhir",
+              "capabilities": ["smart-imaging-access"]
+            }
+          ],
+          "scope": "launch/patient patient/*.rs"
+        },
+        {
+          "label": "(Local) SMART Sandbox + Open Imaging Server",
+          "clientId": "imaging-app",
+          "iss": "https://launcher.imaging-local.argo.run/v/r4/sim/WzIsIjg3YTMzOWQwLThjYWUtNDE4ZS04OWM3LTg2NTFlNmFhYjNjNiIsIiIsIkFVVE8iLDAsMCwwLCIiLCIiLCIiLCIiLCIiLCIiLCIiLDAsMV0/fhir",
+          "associatedEndpointDefaults": [
+            {
+              "url": "https://imaging-local.argo.run/open/fhir",
+              "capabilities": ["smart-imaging-access"]
+            }
+          ],
+          "scope": "launch/patient patient/*.rs"
+        }
+      ],
+      "selectedServerIndex": 0
+    }

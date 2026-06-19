@@ -120,6 +120,11 @@ spec:
       labels:
         app: reference
     spec:
+      volumes:
+      - name: viewer-config
+        configMap:
+          name: viewer-config
+          optional: true
       containers:
       - name: proxy
         image: ghcr.io/jmandel/smart-imaging-proxy:latest
@@ -128,6 +133,10 @@ spec:
           requests:
             memory: "64Mi"
             cpu: "75m"
+        volumeMounts:
+        - name: viewer-config
+          mountPath: /app/public/viewer/config
+          readOnly: true
         env:
         - name: BASE_URL
           valueFrom:
@@ -264,7 +273,7 @@ spec:
         name: orthanc-config-volume
       containers:
       - name: orthanc
-        image: jodogne/orthanc-plugins:1.11.0
+        image: orthancteam/orthanc:26.6.0-full
         resources:
           requests:
             memory: "128Mi"

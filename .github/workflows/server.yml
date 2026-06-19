@@ -1,38 +1,79 @@
-name: Deploy Server to k8s
+name: Build Server Image
+
 on:
   push:
     branches:
     - main
     paths:
+    - '.dockerignore'
+    - '.github/workflows/server.yml'
     - 'server/**'
+    - 'viewer/**'
+  pull_request:
+    paths:
+    - '.dockerignore'
+    - '.github/workflows/server.yml'
+    - 'server/**'
+    - 'viewer/**'
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/smart-imaging-proxy
+  K8S_NAMESPACE: smart-imaging-access
+  K8S_DEPLOYMENT: reference
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@master
-    - uses: azure/docker-login@v1
-      with:
-        login-server: ${{ secrets.CONTAINER_REGISTRY }}
-        username: ${{ fromJSON(secrets.AZURE_CREDENTIALS).clientId }}
-        password: ${{ fromJSON(secrets.AZURE_CREDENTIALS).clientSecret }}
-    - uses: azure/login@v1
-      with:
-        creds: ${{ secrets.AZURE_CREDENTIALS }}
-    - uses: azure/aks-set-context@v3
-      with:
-        cluster-name: ${{ secrets.CLUSTER_NAME }}
-        resource-group: ${{ secrets.RESOURCE_GROUP }}
-        admin: 'true'
+    - uses: actions/checkout@v4
 
-    - name: Build and rollout to CI
-      working-directory: ./server
+    - uses: docker/setup-buildx-action@v3
+
+    - name: Docker metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.IMAGE_NAME }}
+        tags: |
+          type=sha,prefix=sha-,format=short
+          type=raw,value=latest,enable=${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+
+    - name: Log in to GHCR
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Build image
+      uses: docker/build-push-action@v6
+      with:
+        context: .
+        file: server/Dockerfile
+        push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+
+    - name: Set up kubectl
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      uses: azure/setup-kubectl@v4
+
+    - name: Configure deploy kubeconfig
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
       run: |
-        echo "TODO"
-        # docker build . \
-        #   -t ${{ secrets.CONTAINER_REGISTRY }}/imaging-proxy:$GITHUB_SHA \
-        #   -t ${{ secrets.CONTAINER_REGISTRY }}/imaging-proxy:latest
-        # docker run --rm --entrypoint deno  argonautcontainerregistry.azurecr.io/imaging-proxy test --allow-all
-        # docker push ${{ secrets.CONTAINER_REGISTRY }}/imaging-proxy
-        # kubectl -n smart-imaging-access patch deployment reference --type JSON --patch '[{"op": "replace", "path": "/spec/template/spec/containers/0/imagePullPolicy", "value": "Always"}]'
-        # kubectl -n smart-imaging-access rollout restart deployment/reference
+        mkdir -p "$RUNNER_TEMP/kube"
+        echo "${{ secrets.SMART_IMAGING_DOKS_KUBECONFIG_B64 }}" | base64 -d > "$RUNNER_TEMP/kube/config"
+        chmod 600 "$RUNNER_TEMP/kube/config"
+        echo "KUBECONFIG=$RUNNER_TEMP/kube/config" >> "$GITHUB_ENV"
+
+    - name: Deploy to imaging.argo.run
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      run: |
+        image="${IMAGE_NAME}:sha-${GITHUB_SHA::7}"
+        kubectl -n "$K8S_NAMESPACE" set image "deployment/$K8S_DEPLOYMENT" proxy="$image" sample-loader="$image"
+        kubectl -n "$K8S_NAMESPACE" rollout status "deployment/$K8S_DEPLOYMENT" --timeout=180s
