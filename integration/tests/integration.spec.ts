@@ -8,7 +8,7 @@ test('Approve and view images', async ({ page }) => {
   await page.getByRole('button', { name: 'Connect', exact: true }).click();
   await page.getByRole('button', { name: 'Approve' }).click();
 
-  const clinicalPanel = await page.getByRole('heading', { name: 'Clinical Data' }).locator('..');
+  const clinicalPanel = page.locator('.clinical-panel');
   await expect(clinicalPanel).toContainText("Danae");
 
   await page.getByRole('button', { name: /Upper Extremity/ }).first().click();
